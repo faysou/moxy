@@ -26,9 +26,12 @@ pub(crate) fn pattern_bound(cursor: Cursor<'_>) -> Option<Cursor<'_>> {
 pub(crate) fn early_block_like(cursor: Cursor<'_>) -> Option<(Cursor<'_>, bool)> {
     let start = Attributes::skip(cursor)?;
 
-    if peek::block_like(start)
-        && let Some(end) = primary(start, ExprContext::NORMAL)
-    {
+    // A block-like start that does not skip as one fails the statement:
+    // skipping it again as an operand would retry every enclosing level, which
+    // takes time exponential in the nesting
+    if peek::block_like(start) {
+        let end = primary(start, ExprContext::NORMAL)?;
+
         if !peek::continues_block_like(end) {
             return Some((end, true));
         }
@@ -219,6 +222,7 @@ fn primary(mut cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
     if <Token![match]>::peek(cursor) {
         cursor = <Token![match]>::skip(cursor)?;
         cursor = expr(cursor, ExprContext::EARLY)?;
+        let _depth = moxy_token::Depth::enter()?;
         let mut inner = Attributes::skip_inner(cursor.descend(Delim::Brace)?)?;
 
         while !inner.is_empty() {
@@ -515,6 +519,10 @@ fn assignment_ranged(cursor: Cursor<'_>, context: ExprContext) -> Option<(Cursor
 
 // The assignments after a left side that a range does not end
 fn assignment_rest(mut cursor: Cursor<'_>, context: ExprContext) -> Option<(Cursor<'_>, bool)> {
+    // Each assignment after a range nests in the tree the parser builds, so
+    // its level is held until the whole chain is skipped
+    let mut levels = Vec::new();
+
     loop {
         let assign = <Token![=]>::peek(cursor) && !<Token![==]>::peek(cursor) && !<Token![=>]>::peek(cursor);
         let compound = peek_binary(cursor).is_some_and(|op| Precedence::of(&op) == Precedence::Assign);
@@ -528,7 +536,7 @@ fn assignment_rest(mut cursor: Cursor<'_>, context: ExprContext) -> Option<(Curs
         } else {
             BinOp::skip(cursor)?
         };
-        let _depth = moxy_token::Depth::enter()?;
+        levels.push(moxy_token::Depth::enter()?);
         let (next, ranged) = assignment_ranged(cursor, context)?;
         cursor = next;
 

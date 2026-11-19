@@ -213,7 +213,8 @@ fn input_nested_to_the_depth_limit_parses_on_a_small_stack() {
 
     let parsed = on_small_stack(move || {
         let parens = format!("{}a{}", "(".repeat(depth), ")".repeat(depth));
-        let arms = format!("{}a{}", "match a { _ => ".repeat(depth), " }".repeat(depth));
+        // The arms of a match take a level of their own
+        let arms = format!("{}a{}", "match a { _ => ".repeat(depth - 2), " }".repeat(depth - 2));
         // A closure parameter is a pattern, which keeps one level of room
         let closures = format!("{}a", "|x| ".repeat(depth - 1));
         let generics = format!("{}u8{}", "Vec<".repeat(depth), ">".repeat(depth));
@@ -280,6 +281,54 @@ fn nested_parentheses_in_types_and_block_chains_parse_in_linear_time() {
         ("block chain", format!("fn f() {{ {chain}; }}")),
     ] {
         within_limit(label, move || moxy::parse!(source as moxy::ast::File).is_ok());
+    }
+}
+
+#[test]
+fn block_like_statements_at_the_depth_limit_skip_in_linear_time() {
+    use moxy::ast::{Expr, StmtBlock};
+
+    // A block-like statement that failed to skip at the limit was skipped
+    // again as an operand at every enclosing level
+    let depth = moxy::token::MAX_DEPTH;
+
+    for open in ["if a { ", "if a {} else { ", "while a { ", "loop { ", "unsafe { ", "'a: { "] {
+        let source = format!("{}x{}", open.repeat(depth), " }".repeat(depth));
+        within_limit(open, move || {
+            let tokens: TokenStream = source.parse().unwrap();
+            Expr::skip(Parser::from_tokens(&tokens).cursor()).is_none()
+        });
+    }
+
+    let source = format!("{{ {}x{} }}", "if a { ".repeat(depth - 1), " }".repeat(depth - 1));
+    within_limit("ifs in a block", move || {
+        let tokens: TokenStream = source.parse().unwrap();
+        StmtBlock::skip(Parser::from_tokens(&tokens).cursor()).is_none()
+    });
+}
+
+#[test]
+fn members_skip_to_the_depth_that_they_parse_to() {
+    use moxy::ast::File;
+
+    let message = format!("nesting is deeper than {} levels", moxy::token::MAX_DEPTH);
+
+    // Each as deep as the lexer accepts, past the depth that members parse to
+    for (open, close, groups) in [
+        ("impl A { fn f() { ", "} }", 2),
+        ("trait A { fn f() { ", "} }", 2),
+        ("extern \"C\" { static X: [u8; { ", " 1 }]; }", 3),
+    ] {
+        let depth = moxy::token::MAX_DEPTH / groups;
+        let source = format!("{}{}", open.repeat(depth), close.repeat(depth));
+        let message = message.clone();
+        let (error, skipped) = on_small_stack(move || {
+            let tokens: TokenStream = source.parse().unwrap();
+            let parser = Parser::from_tokens(&tokens);
+            let skipped = File::skip(parser.cursor()).is_some();
+            (File::parse(&parser).err().map(|error| error.message().to_string()), skipped)
+        });
+        assert_eq!((error.as_deref(), skipped), (Some(message.as_str()), false), "{open}");
     }
 }
 
@@ -436,6 +485,16 @@ fn deep_trees_of_every_kind_parse_and_traverse_or_report_the_depth() {
             deepest::<Expr>(|n| format!("{}0", "|| 0||0&&0==0|0^0&0<<0+0*".repeat(n)), expr),
         ),
         (
+            "match arms",
+            MAX_DEPTH - 3,
+            deepest::<Expr>(|n| format!("{}x{}", "match a { _ => ".repeat(n), " }".repeat(n)), expr),
+        ),
+        (
+            "match guards",
+            (MAX_DEPTH - 2) / 2,
+            deepest::<Expr>(|n| format!("{}x{}", "match a { _ if ".repeat(n), " => {} }".repeat(n)), expr),
+        ),
+        (
             "parentheses",
             MAX_DEPTH - 1,
             deepest::<Expr>(|n| format!("{}a{}", "(".repeat(n), ")".repeat(n)), expr),
@@ -550,7 +609,14 @@ fn nested_ranges_without_a_start_count_against_the_depth() {
 fn assignments_after_ranges_count_against_the_depth() {
     let message = format!("nesting is deeper than {} levels", moxy::token::MAX_DEPTH);
     let source = format!("a{}", " = b..".repeat(100_000));
-    assert_eq!(traverse_on_small_stack::<moxy::ast::Expr>(source), Some(message));
+    assert_eq!(traverse_on_small_stack::<moxy::ast::Expr>(source.clone()), Some(message));
+
+    // Skipping holds each assignment's level as parsing does
+    let skipped = on_small_stack(move || {
+        let tokens: TokenStream = source.parse().unwrap();
+        <moxy::ast::Expr as Parse>::skip(Parser::from_tokens(&tokens).cursor()).is_some()
+    });
+    assert!(!skipped);
     assert_eq!(
         traverse_on_small_stack::<moxy::ast::Expr>(format!("a{}", " = b..".repeat(50))),
         None

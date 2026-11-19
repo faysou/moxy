@@ -814,6 +814,8 @@ fn labeled_block(parser: &Parser, attrs: Attributes) -> Result<Box<Expr>, ParseE
 fn match_expr(parser: &Parser, attrs: Attributes) -> Result<Box<Expr>, ParseError> {
     let match_keyword = <_ as Parse>::parse(parser)?;
     let expr = boxed_expr(parser, ExprContext::EARLY)?;
+    // The arms take a level, as their bodies and guards nest no other way
+    let _depth = moxy_token::Depth::enter().ok_or_else(|| ParseError::too_deep(parser.span()))?;
     let (span, arms) = parser.parse_group_spanned(Delim::Brace)?;
     let inner = Attributes::parse_inner(&arms)?;
 

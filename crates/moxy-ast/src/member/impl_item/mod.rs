@@ -130,6 +130,9 @@ impl Parse for ImplItem {
     }
 
     fn skip(cursor: Cursor<'_>) -> Option<Cursor<'_>> {
+        // The same two levels as its parse
+        let _weight = moxy_token::Depth::enter_by(2)?;
+
         if ImplItemConst::peek(cursor) {
             ImplItemConst::skip(cursor)
         } else if ImplItemType::peek(cursor) {
