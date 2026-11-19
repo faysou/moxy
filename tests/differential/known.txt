@@ -46,7 +46,6 @@ REJECT f: m! ident {}
 REJECT f: macro m() {}
 REJECT f: pub macro m($a:expr) { $a }
 REJECT f: struct S { a: u8 = 1 }
-REJECT f: unsafe extern "C" fn f(a: u8, mut args: ...) {}
 REJECT p: S { box a }
 REJECT t: impl const A
 REJECT t: unsafe<'a> &'a A
@@ -142,13 +141,9 @@ TOKENS f: #!/usr/bin/env rust\n#![allow(a)]\nfn main() {}
 REJECT f: type Symbols<'false> = Table<Symbol<'false>>;
 REJECT f: impl<T> X<T> { type Item; #[inline] fn next() -> Option<T> {} fn advance_by(self, n: usize) -> Result<(), NonZero<usize>> { rem = if len < n {} else {} } }
 
-# Pending: invalid input that moxy accepts, a named variadic parameter, and
-# `mut self` as a pattern, not yet fixed
+# Pending: invalid input that moxy accepts and `mut self` as a pattern, not
+# yet fixed
 ACCEPT e: abstract
-REJECT f: fn f(a: u8, _: ...) {}
-REJECT f: type B = fn(_: ...) -> Status;
-REJECT f: type B = unsafe extern "efiapi" fn(_: Handle, _: ...) -> Status;
-REJECT t: fn(a: A, va: ...)
 ACCEPT b: { a b }
 ACCEPT b: { let x = 1 }
 ACCEPT b: { let x = S {} else { return }; }

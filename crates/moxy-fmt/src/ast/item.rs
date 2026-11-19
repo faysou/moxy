@@ -115,8 +115,8 @@ impl Format for Variadic {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
         self.attrs.format(f)?;
 
-        if let Some(name) = &self.name {
-            name.format(f)?;
+        if let Some(pat) = &self.pat {
+            pat.format(f)?;
             f.text(": ")?;
         }
 

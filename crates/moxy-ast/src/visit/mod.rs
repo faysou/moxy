@@ -1401,7 +1401,8 @@ define_visit! {
         walk: walk_variadic, walk_mut: walk_variadic_mut,
         fields {
             attrs => visit_attributes / visit_attributes_mut,
-            name: skip,
+            pat: opt_box => visit_pattern / visit_pattern_mut,
+            colon: skip,
             dots: skip,
         }
     }
