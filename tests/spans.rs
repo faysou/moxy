@@ -301,3 +301,24 @@ fn nested_function_sugar_spans_in_linear_time() {
         .expect("span took longer than 10 seconds");
     assert_eq!(len, 64 * "Fn(A) -> ".len() + 1);
 }
+
+// Positions count bytes, as the lexer does, so a token after text of more than
+// one byte a character stays in its own source and its column counts
+// characters
+#[test]
+fn tokens_after_multibyte_text_locate_in_their_own_source() {
+    use moxy::token::source::SourceMap;
+    use moxy::token::{Span, TokenStream};
+
+    let first: TokenStream = "\"ééééé\"\n é x".parse().unwrap();
+    let second: TokenStream = "yy zz".parse().unwrap();
+    let x = first.iter().last().unwrap().span();
+    let text = SourceMap::with(|map| {
+        let Span::Fallback(span) = x else { panic!() };
+        map.find(span).map(|source| source.slice(span))
+    });
+
+    assert_eq!(second.to_string(), "yy zz");
+    assert_eq!(text.as_deref(), Some("x"));
+    assert_eq!((x.start().index(), x.start().line(), x.start().column()), (17, 1, 3));
+}

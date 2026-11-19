@@ -80,7 +80,9 @@ impl SourceMap {
     }
 
     pub fn push(&mut self, src: impl Into<String>) -> Span {
-        let start = self.0.last().map(|src| src.span().byte_range().end).unwrap_or(0);
+        // One position between sources keeps a span that ends one source,
+        // such as the end of its input, out of the next
+        let start = self.0.last().map(|src| src.span().byte_range().end + 1).unwrap_or(0);
         let src = Source::new(start, src);
         let span = src.span();
         self.0.push(src);
