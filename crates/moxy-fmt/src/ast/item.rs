@@ -902,7 +902,11 @@ impl Format for TraitItemMacro {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
         self.attrs.format(f)?;
         self.mac.format(f)?;
-        f.text(";")?;
+
+        if self.semi.is_some() {
+            f.text(";")?;
+        }
+
         Ok(())
     }
 }

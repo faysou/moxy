@@ -83,3 +83,19 @@ fn associated_type_where_clauses_are_formatted() {
         "trait A {\n\ttype Gat<'a>: Iterator<Item = &'a u8>\n\twhere\n\tSelf: 'a;\n}"
     );
 }
+
+#[test]
+fn brace_delimited_macro_items_need_no_semicolon() {
+    let item: Item = moxy::parse!("trait A { fn f(&self) {} declare! { x } fn g(&self); }").unwrap();
+    let items = &item.as_trait().unwrap().items.inner;
+    assert_eq!(items.len(), 3);
+    assert!(items[1].is_macro());
+    assert_eq!(
+        item.to_token_stream().to_string(),
+        "trait A {fn f (& self) {} declare ! {x} fn g (& self) ;}"
+    );
+    assert_eq!(
+        moxy::fmt!(&item).unwrap(),
+        "trait A {\n\tfn f(&self) {}\n\tdeclare!{x}\n\tfn g(&self);\n}"
+    );
+}
