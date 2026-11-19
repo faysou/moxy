@@ -21,7 +21,7 @@ impl Parse for ParenArguments {
     fn parse(parser: &Parser) -> Result<Self, ParseError> {
         let colon2 = <_ as Parse>::parse(parser)?;
         let params = Delimited::parse_paren_with(parser, List::parse_all)?;
-        let output = <_ as Parse>::parse(parser)?;
+        let output = ReturnType::parse_without_plus(parser)?;
         Ok(Self { colon2, params, output })
     }
 
@@ -40,7 +40,7 @@ impl Parse for ParenArguments {
         }
 
         cursor = cursor.offset(1);
-        ReturnType::skip(cursor)
+        ReturnType::skip_without_plus(cursor)
     }
 }
 
