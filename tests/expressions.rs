@@ -398,3 +398,20 @@ fn remaining_expression_public_variants_match_rendered_syntax() {
         assert_eq!(moxy::fmt!(&expression).unwrap(), expected);
     }
 }
+
+#[test]
+fn a_less_than_after_a_path_is_a_comparison() {
+    for (source, tokens) in [
+        ("a < b", "a < b"),
+        ("n < 2.0 && m > 3", "n < 2.0 && m > 3"),
+        ("x::y < z", "x :: y < z"),
+        ("f::<u8>(x) < g", "f :: < u8 > (x) < g"),
+        ("Vec::<u8>::new()", "Vec :: < u8 > :: new ()"),
+    ] {
+        let expression: Expr = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        assert_eq!(expression.to_token_stream().to_string(), tokens);
+    }
+
+    let expression: Expr = moxy::parse!("if n < 2.0 { return 1; }").unwrap();
+    assert!(expression.as_if().unwrap().cond.is_binary());
+}

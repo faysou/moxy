@@ -460,7 +460,7 @@ fn primary(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<E
             let (qself, path) = QSelf::parse_qualified(parser)?;
             (Some(qself), path)
         } else {
-            (None, <_ as Parse>::parse(parser)?)
+            (None, Path::parse_expr(parser)?)
         };
 
         if qself.is_none() && <Token![!]>::peek(parser.cursor()) && !<Token![!=]>::peek(parser.cursor()) {
