@@ -2,7 +2,8 @@
 # b (block), p (pattern), t (type), i (item), and f (file). `\n` in a source
 # stands for a line break. moxy and syn must agree on each line: both reject it,
 # or both accept it with the same tree shape and the same emitted tokens.
-# Differences that are known go in known.txt.
+# Differences that are known go in known.txt. The snippets are synthetic,
+# written to exercise one form each, not taken from real code.
 e: a + b * c
 e: a * b + c
 e: a - b - c
