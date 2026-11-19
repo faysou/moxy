@@ -77,6 +77,7 @@ REJECT t: 'a + A
 
 # Intentional: rustc's parser accepts these and rejects them later, which syn
 # rejects while parsing or keeps as tokens
+ACCEPT e: A::<B>!()
 ACCEPT f: use a::{::b};
 TREE f: trait A { pub fn f(); }
 ACCEPT f: impl A { type T where Self: Sized = u8; }
@@ -133,7 +134,9 @@ REJECT e: 1e
 REJECT f: fn f() { 1f16; 1.0f128; 1f16; 2b; 1px; 1em; 0x1p3; 1_; 1__; }
 
 # Intentional: rustc rejects these after parsing, as moxy does while parsing:
-# a keyword as a lifetime name and an associated type without a type in an impl
+# a keyword as a lifetime name, an associated type without a type in an impl,
+# and `crate` after the first segment of a use path
+REJECT f: use a::crate;
 REJECT f: type Symbols<'false> = Table<Symbol<'false>>;
 REJECT f: impl<T> X<T> { type Item; #[inline] fn next() -> Option<T> {} fn advance_by(self, n: usize) -> Result<(), NonZero<usize>> { rem = if len < n {} else {} } }
 
