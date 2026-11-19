@@ -98,12 +98,27 @@ fn range(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<Exp
 
 fn binary(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<Expr, ParseError> {
     let mut left = cast(parser, attrs.clone(), context)?;
+    // Comparisons bind tighter than `&&` and `||` and looser than the other operators, and do
+    // not chain: between two logical operators there is at most one
+    let mut compared = false;
 
     while BinOp::peek(parser.cursor()) && !context.is_end_before_infix(parser.cursor()) {
+        let op: BinOp = <_ as Parse>::parse(parser)?;
+
+        if op.is_comparison() {
+            if compared {
+                return Err(ParseError::new(op.span(), "comparison operators cannot be chained"));
+            }
+
+            compared = true;
+        } else if matches!(op, BinOp::And(_) | BinOp::Or(_)) {
+            compared = false;
+        }
+
         left = ExprBinary {
             attrs: attrs.clone(),
             left: Box::new(left),
-            op: <_ as Parse>::parse(parser)?,
+            op,
             right: Box::new(cast(parser, attrs.clone(), context)?),
         }
         .into();
