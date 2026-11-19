@@ -89,7 +89,7 @@ impl Parse for UseTree {
             || UseName::peek(cursor)
     }
 
-    // Each segment of a path nests the tree one level, as in `a::b::c`
+    // A brace group nests the trees inside it one level, as in `a::{b::{c}}`
     fn parse(parser: &Parser) -> Result<Self, ParseError> {
         let _depth = moxy_token::Depth::enter().ok_or_else(|| ParseError::too_deep(parser.span()))?;
 

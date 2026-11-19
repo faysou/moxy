@@ -387,6 +387,16 @@ fn deep_trees_of_every_kind_parse_and_traverse_or_report_the_depth() {
     // Each kind with the depth it must reach
     let kinds = [
         (
+            "operator ladders in parentheses",
+            14,
+            deepest::<Expr>(|n| format!("{}0{}", "(0||0&&0==0|0^0&0<<0+0*".repeat(n), ")".repeat(n)), expr),
+        ),
+        (
+            "operator ladders in closures",
+            14,
+            deepest::<Expr>(|n| format!("{}0", "|| 0||0&&0==0|0^0&0<<0+0*".repeat(n)), expr),
+        ),
+        (
             "parentheses",
             140,
             deepest::<Expr>(|n| format!("{}a{}", "(".repeat(n), ")".repeat(n)), expr),
@@ -646,4 +656,17 @@ fn chains_of_any_length_parse_and_traverse_on_a_small_stack() {
         true
     });
     assert!(checked);
+}
+
+#[test]
+fn a_chain_of_atoms_costs_no_level_of_its_own() {
+    // `(1 + 1)` costs what its parentheses cost; a chain nests a level only
+    // inside an operand of a weaker chain
+    let parens = |n: usize| format!("{}1{}", "(1 + ".repeat(n), ")".repeat(n));
+    let depth = moxy::token::MAX_DEPTH - 1;
+    assert!(moxy::parse!((parens(depth)) as moxy::ast::Expr).is_ok());
+
+    let message = format!("nesting is deeper than {} levels", moxy::token::MAX_DEPTH);
+    let error = moxy::parse!((parens(depth + 1)) as moxy::ast::Expr).err().unwrap();
+    assert_eq!(error.message(), message);
 }
