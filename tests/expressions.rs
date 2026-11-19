@@ -472,3 +472,19 @@ fn closure_parameters_take_reference_patterns() {
         assert_eq!(expression.to_token_stream().to_string(), tokens);
     }
 }
+
+#[test]
+fn qualified_paths_keep_their_qualifier_in_expressions_and_patterns() {
+    for (source, tokens) in [
+        ("<T as a::U>::f(x)", "< T as a :: U > :: f (x)"),
+        ("<Vec<u8>>::new()", "< Vec < u8 >> :: new ()"),
+        ("<T as U>::C { x: 1 }", "< T as U > :: C {x : 1}"),
+        (
+            "match x { <T as U>::A => 1, <T as U>::B { x } => 2, <T as U>::C(y) => 3 }",
+            "match x {< T as U > :: A => 1 , < T as U > :: B {x} => 2 , < T as U > :: C (y) => 3}",
+        ),
+    ] {
+        let expression: Expr = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        assert_eq!(expression.to_token_stream().to_string(), tokens);
+    }
+}
