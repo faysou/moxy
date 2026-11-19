@@ -114,11 +114,10 @@ TREE e: match a { 0...5 => 1 }
 TREE p: 1...2
 
 # Intentional: moxy models these differently from syn: `self` as a path pattern,
-# a block statement and a following `;` as two statements, attributes before a
-# range on its start, and a `&` before a range pattern on the range
+# a block statement and a following `;` as two statements, and attributes before
+# a range on its start
 TREE b: { #[a] 1..2; }
 TREE b: { {}; -1 }
-TREE p: &1..=2
 TREE p: self
 
 # Intentional: moxy emits the empty `<>`, `:`, and `where` and the variant
