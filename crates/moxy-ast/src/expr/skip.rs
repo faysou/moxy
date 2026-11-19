@@ -319,11 +319,17 @@ fn postfix(mut cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
                 }
             }
 
-            // `0.1` in `x.0.1` is two tuple indices in one float literal
+            // `0.1` in `x.0.1` is two tuple indices in one float literal, and `0.`
+            // in `x.0. 1` one and the dot before the next
             if let Some(TokenTree::Literal(Lit::Float(float))) = cursor.curr()
-                && float.split_tuple_index().is_some()
+                && let Some((_, _, second)) = float.split_tuple_index()
             {
                 cursor = cursor.offset(1);
+
+                if second.is_none() {
+                    cursor = Member::skip(cursor)?;
+                }
+
                 continue;
             }
 

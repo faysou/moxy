@@ -436,8 +436,8 @@ fn dot(parser: &Parser, base: Box<Expr>) -> Result<Box<Expr>, ParseError> {
         }
     }
 
-    // The compiler lexes `0.1` in `x.0.1` as one float literal, which is two
-    // tuple indices
+    // The compiler lexes `0.1` in `x.0.1` and `0.` in `x.0. 1` as one float
+    // literal, which holds two tuple indices or one and the next dot
     if let Some(TokenTree::Literal(Lit::Float(float))) = parser.cursor().offset(1).curr()
         && let Some((first, inner_dot, second)) = float.split_tuple_index()
     {
@@ -450,11 +450,17 @@ fn dot(parser: &Parser, base: Box<Expr>) -> Result<Box<Expr>, ParseError> {
             member: Member::Unnamed(first.into()),
         });
 
+        // After `0.`, as in `x.0. 1`, the second index is the next token
+        let member = match second {
+            Some(second) => Member::Unnamed(second.into()),
+            None => <_ as Parse>::parse(parser)?,
+        };
+
         return Ok(boxed(ExprField {
             attrs: Default::default(),
             base: inner,
             dot: inner_dot,
-            member: Member::Unnamed(second.into()),
+            member,
         }));
     }
 
