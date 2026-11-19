@@ -3,7 +3,7 @@
 use std::str::FromStr;
 
 use moxy_ast::{Cursor, Parse, ParseError, Parser};
-use moxy_token::{Delim, Punct, Span, ToTokens, TokenStream, TokenTree};
+use moxy_token::{Delim, Lit, Punct, Span, ToTokens, TokenStream, TokenTree};
 
 #[doc = "Literal passthrough tokens in a template: any tokens not matched by interpolation or control flow."]
 #[derive(Clone)]
@@ -77,12 +77,24 @@ impl ToTokens for TmplTokens {
         for token in self.tokens.iter() {
             match token {
                 // Text cannot carry a `$crate` identifier or an invisible group
-                // from a `macro_rules!` fragment, so these are built as tokens
+                // from a `macro_rules!` fragment, so these are built as tokens,
+                // as are literals that would not lex again
                 TokenTree::Ident(ident) if ident.text() == DOLLAR_CRATE => {
                     emit_text(&std::mem::take(&mut plain), out);
                     out.extend(
                         TokenStream::from_str(&format!(
                             "::moxy::token::ToTokens::to_tokens(&::moxy::token::Ident::new({DOLLAR_CRATE:?}), &mut __moxy_tmpl);"
+                        ))
+                        .unwrap(),
+                    );
+                }
+                // A literal the lexer does not read, which the compiler gave
+                TokenTree::Literal(Lit::Verbatim(literal)) => {
+                    emit_text(&std::mem::take(&mut plain), out);
+                    out.extend(
+                        TokenStream::from_str(&format!(
+                            "::moxy::token::ToTokens::to_tokens(&::moxy::token::Lit::Verbatim(::moxy::token::LitVerbatim::new({:?}, ::moxy::token::Span::call_site())), &mut __moxy_tmpl);",
+                            literal.repr()
                         ))
                         .unwrap(),
                     );
@@ -109,6 +121,7 @@ const DOLLAR_CRATE: &str = "$crate";
 fn needs_tokens(token: &TokenTree) -> bool {
     match token {
         TokenTree::Ident(ident) => ident.text() == DOLLAR_CRATE,
+        TokenTree::Literal(literal) => literal.is_verbatim(),
         TokenTree::Group(group) => group.delim == Delim::None || group.tokens.iter().any(needs_tokens),
         _ => false,
     }
