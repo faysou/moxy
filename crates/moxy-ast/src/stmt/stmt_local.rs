@@ -31,7 +31,8 @@ impl Parse for StmtLocal {
     fn parse(parser: &Parser) -> Result<Self, ParseError> {
         let attrs = <_ as Parse>::parse(parser)?;
         let let_keyword = <_ as Parse>::parse(parser)?;
-        let pat = <_ as Parse>::parse(parser)?;
+        // As in rustc, the pattern has no top-level `|`
+        let pat = crate::pat::parse::single(parser)?;
         let ty = if <Token![:]>::peek(parser.cursor()) {
             let colon = <_ as Parse>::parse(parser)?;
             Some((colon, <_ as Parse>::parse(parser)?))
@@ -57,7 +58,7 @@ impl Parse for StmtLocal {
     fn skip(mut cursor: Cursor<'_>) -> Option<Cursor<'_>> {
         cursor = Attributes::skip(cursor)?;
         cursor = <Token![let]>::skip(cursor)?;
-        cursor = Pattern::skip(cursor)?;
+        cursor = crate::pat::skip::single(cursor)?;
 
         if <Token![:]>::peek(cursor) {
             cursor = <Token![:]>::skip(cursor)?;

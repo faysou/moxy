@@ -83,8 +83,6 @@ REJECT t: 'a + A
 # rejects while parsing or keeps as tokens
 ACCEPT f: use a::{::b};
 TREE f: trait A { pub fn f(); }
-ACCEPT b: { let a | b = c; }
-ACCEPT b: { let | a = c; }
 ACCEPT f: impl A { type T where Self: Sized = u8; }
 ACCEPT f: safe fn f() {}
 ACCEPT f: safe static X: u8 = 1;
@@ -143,7 +141,6 @@ REJECT f: impl<T> X<T> { type Item; #[inline] fn next() -> Option<T> {} fn advan
 # Pending: invalid input that moxy accepts and `mut self` as a pattern, not
 # yet fixed
 ACCEPT e: abstract
-ACCEPT f: fn f(a | b: u8) {}
 ACCEPT p: #[a] x
 ACCEPT p: -'a'
 ACCEPT p: [1.., 2]
