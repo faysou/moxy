@@ -3,11 +3,21 @@ use std::cell::Cell;
 /// The deepest nesting that lexing, parsing, and skipping accept. Deeper input
 /// is an error instead of a stack overflow.
 ///
-/// Lexing counts each delimited group as one level. Parsing counts each nested
-/// operand, group, block, pattern, type, generic argument, module, or
-/// assignment as one level, and each chain of binary operators whose operands
-/// hold a chain of stronger operators as one more, as in `a || b && c`. It
-/// charges the forms whose parse takes more stack more levels:
+/// Lexing counts each delimited group as one level and reports deeper groups as
+/// "delimiters nest deeper than 144 levels". Converting a `proc_macro` or
+/// `proc_macro2` stream counts groups the same way:
+/// [`TryIntoTokenStream::try_into_token_stream`](crate::TryIntoTokenStream)
+/// returns that error, and `From` panics with it. Real source and macro
+/// bodies do not nest groups that deep. Token trees built by hand are not
+/// limited, and cloning, comparing, printing, and converting one back recurse
+/// once per group.
+///
+/// Parsing reports its own limit as "nesting is deeper than 144 levels". It
+/// counts each nested operand, group, block, pattern, type, generic argument,
+/// module, assignment, or set of match arms as one level, and each chain of
+/// binary operators whose operands hold a chain of stronger operators as one
+/// more, as in `a || b && c`. It charges the forms whose parse takes more
+/// stack more levels:
 ///
 /// - Two levels: a struct literal or struct pattern, a closure with a return
 ///   type, a function pointer type, parenthesized path arguments as in

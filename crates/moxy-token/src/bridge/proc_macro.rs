@@ -159,7 +159,14 @@ impl ToTokens for proc_macro::Literal {
 impl From<proc_macro::Group> for Group {
     #[inline]
     fn from(value: proc_macro::Group) -> Self {
-        group(&value, convert(value.stream()))
+        // Converted as a stream so the group's own level counts
+        let stream = proc_macro::TokenStream::from(proc_macro::TokenTree::Group(value));
+        let mut converted = super::expect_converted(convert(stream)).into_iter();
+
+        match converted.next() {
+            Some(TokenTree::Group(group)) => group,
+            _ => unreachable!("a group converts to a group"),
+        }
     }
 }
 
@@ -209,7 +216,7 @@ impl ToTokens<TokenStream> for proc_macro::TokenTree {
 
 impl ToTokens<TokenStream> for proc_macro::TokenStream {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        for token in Vec::<TokenTree>::from(convert(self.clone())) {
+        for token in Vec::<TokenTree>::from(super::expect_converted(convert(self.clone()))) {
             tokens.extend_one(token);
         }
     }
@@ -250,8 +257,10 @@ impl Level {
 }
 
 // Converts a stream with a stack of the groups it is inside rather than by
-// recursion, so a stream nested any depth converts on any stack
-fn convert(stream: proc_macro::TokenStream) -> TokenStream {
+// recursion, and refuses groups nested past `MAX_DEPTH` as the lexer does, so
+// no stream deeper than the lexer builds reaches the traversals that recurse
+// per group
+fn convert(stream: proc_macro::TokenStream) -> Result<TokenStream, LexError> {
     let mut levels = vec![Level::new(stream, None)];
 
     loop {
@@ -263,6 +272,11 @@ fn convert(stream: proc_macro::TokenStream) -> TokenStream {
             }
             Some(proc_macro::TokenTree::Group(group)) => {
                 level.flush();
+                // The outermost level holds no group
+                if levels.len() > crate::MAX_DEPTH {
+                    return Err(LexError::too_deep(group.span().into()));
+                }
+
                 let stream = group.stream();
                 levels.push(Level::new(stream, Some(group)));
             }
@@ -275,7 +289,7 @@ fn convert(stream: proc_macro::TokenStream) -> TokenStream {
                 let done = levels.pop().expect("a level is open");
 
                 let Some(value) = done.group else {
-                    return done.out;
+                    return Ok(done.out);
                 };
 
                 let converted = group(&value, done.out);
@@ -335,9 +349,11 @@ impl ToTokens<proc_macro::TokenStream> for TokenStream {
     }
 }
 
+/// Panics on a stream whose groups nest deeper than [`crate::MAX_DEPTH`];
+/// [`TryIntoTokenStream::try_into_token_stream`] returns that as an error.
 impl From<proc_macro::TokenStream> for TokenStream {
     fn from(value: proc_macro::TokenStream) -> Self {
-        convert(value)
+        super::expect_converted(convert(value))
     }
 }
 
@@ -355,12 +371,12 @@ impl From<TokenStream> for proc_macro::TokenStream {
 
 impl TryIntoTokenStream for proc_macro::TokenStream {
     fn try_into_token_stream(self) -> Result<TokenStream, LexError> {
-        Ok(self.into())
+        convert(self)
     }
 }
 
 impl TryIntoTokenStream for &proc_macro::TokenStream {
     fn try_into_token_stream(self) -> Result<TokenStream, LexError> {
-        Ok(self.clone().into())
+        convert(self.clone())
     }
 }

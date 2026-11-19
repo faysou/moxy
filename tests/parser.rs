@@ -162,49 +162,270 @@ fn on_small_stack<T: Send + 'static>(parse: impl FnOnce() -> T + Send + 'static)
         .unwrap()
 }
 
-#[test]
-fn input_nested_past_the_depth_limit_is_an_error() {
-    let depth = moxy::token::MAX_DEPTH + 1;
-    let message = format!("nesting is deeper than {} levels", moxy::token::MAX_DEPTH);
+// Every recursive construct of the grammar, as `(name, kind, before, open,
+// center, close, after, unbounded)`: `open` and `close` nest around `center`
+// inside `before` and `after`. An unbounded construct parses at any depth the
+// lexer accepts: macro bodies and attribute arguments, which are tokens, and
+// a chain, which holds its steps flat
+const NESTED: &[(&str, char, &str, &str, &str, &str, &str, bool)] = &[
+    ("neg", 'e', "", "-", "x", "", "", false),
+    ("not", 'e', "", "!", "x", "", "", false),
+    ("deref", 'e', "", "*", "x", "", "", false),
+    ("ref", 'e', "", "& ", "x", "", "", false),
+    ("ref mut", 'e', "", "&mut ", "x", "", "", false),
+    ("raw ref", 'e', "", "&raw const ", "x", "", "", false),
+    ("return", 'e', "", "return ", "x", "", "", false),
+    ("break", 'e', "", "break ", "x", "", "", false),
+    ("break label", 'e', "", "break 'a ", "x", "", "", false),
+    ("yield", 'e', "", "yield ", "x", "", "", false),
+    ("closure", 'e', "", "|| ", "x", "", "", false),
+    ("closure param", 'e', "", "|x| ", "x", "", "", false),
+    ("move closure", 'e', "", "move || ", "x", "", "", false),
+    ("async closure", 'e', "", "async || ", "x", "", "", false),
+    ("static closure", 'e', "", "static || ", "x", "", "", false),
+    ("assign", 'e', "", "a = ", "x", "", "", false),
+    ("compound assign", 'e', "", "a += ", "x", "", "", false),
+    ("range prefix", 'e', "", ".. ", "x", "", "", false),
+    ("range inclusive prefix", 'e', "", "..= ", "x", "", "", false),
+    ("assign range", 'e', "a", " = b..", "", "", "", false),
+    ("binary unary", 'e', "", "a + -", "x", "", "", true),
+    ("cast unary", 'e', "", "-", "x as T", "", "", false),
+    ("turbofish", 'e', "a::<", "Vec<", "u8", ">", ">()", false),
+    ("paren", 'e', "", "(", "x", ")", "", false),
+    ("tuple", 'e', "", "(", "x", ",)", "", false),
+    ("array", 'e', "", "[", "x", "]", "", false),
+    ("repeat value", 'e', "", "[", "x", "; 1]", "", false),
+    ("repeat length", 'e', "", "[x; ", "1", "]", "", false),
+    ("block", 'e', "", "{ ", "x", " }", "", false),
+    ("call", 'e', "", "f(", "x", ")", "", false),
+    ("method", 'e', "", "a.b(", "x", ")", "", false),
+    ("index", 'e', "", "a[", "x", "]", "", false),
+    ("struct literal", 'e', "", "S { a: ", "x", " }", "", false),
+    ("struct base", 'e', "", "S { ..", "x", " }", "", false),
+    ("if body", 'e', "", "if a { ", "x", " }", "", false),
+    ("else body", 'e', "", "if a {} else { ", "x", " }", "", false),
+    ("if condition", 'e', "", "if ", "x", " {}", "", false),
+    ("if let", 'e', "", "if let a = ", "x", " {}", "", false),
+    ("while body", 'e', "", "while a { ", "x", " }", "", false),
+    ("while condition", 'e', "", "while ", "x", " {}", "", false),
+    ("loop", 'e', "", "loop { ", "x", " }", "", false),
+    ("labeled loop", 'e', "", "'a: loop { ", "x", " }", "", false),
+    ("for body", 'e', "", "for x in y { ", "x", " }", "", false),
+    ("for iterator", 'e', "", "for x in ", "x", " {}", "", false),
+    ("unsafe", 'e', "", "unsafe { ", "x", " }", "", false),
+    ("async", 'e', "", "async { ", "x", " }", "", false),
+    ("async move", 'e', "", "async move { ", "x", " }", "", false),
+    ("const block", 'e', "", "const { ", "x", " }", "", false),
+    ("try block", 'e', "", "try { ", "x", " }", "", false),
+    ("labeled block", 'e', "", "'a: { ", "x", " }", "", false),
+    ("match arm", 'e', "", "match a { _ => ", "x", " }", "", false),
+    ("match arm block", 'e', "", "match a { _ => { ", "x", " } }", "", false),
+    ("match scrutinee", 'e', "", "match ", "x", " {}", "", false),
+    ("match guard", 'e', "", "match a { _ if ", "x", " => {} }", "", false),
+    ("closure block", 'e', "", "|| { ", "x", " }", "", false),
+    ("closure return type", 'e', "", "|| -> T { ", "x", " }", "", false),
+    ("macro call", 'e', "", "m!(", "x", ")", "", true),
+    ("macro braces", 'e', "", "m! { ", "x", " }", "", true),
+    ("let in block", 'e', "", "{ let a = ", "x", "; a }", "", false),
+    ("let else", 'e', "", "{ let a = b else { ", "x", " }; }", "", false),
+    ("attribute arguments", 'e', "#[a", "(", "x", ")", "] y", true),
+    ("const generic block", 'e', "", "a::<{ ", "1", " }>()", "", false),
+    ("closure pattern", 'e', "|", "(", "x", ")", "| x", false),
+    ("ref type", 't', "", "&", "u8", "", "", false),
+    ("ref mut type", 't', "", "&mut ", "u8", "", "", false),
+    ("lifetime ref type", 't', "", "&'a ", "u8", "", "", false),
+    ("const pointer", 't', "", "*const ", "u8", "", "", false),
+    ("mut pointer", 't', "", "*mut ", "u8", "", "", false),
+    ("generics", 't', "", "Vec<", "u8", ">", "", false),
+    ("fn return", 't', "", "fn() -> ", "u8", "", "", false),
+    (
+        "extern fn return",
+        't',
+        "",
+        "unsafe extern \"C\" fn() -> ",
+        "u8",
+        "",
+        "",
+        false,
+    ),
+    ("for fn return", 't', "", "for<'a> fn() -> ", "u8", "", "", false),
+    ("impl Fn", 't', "", "impl Fn() -> ", "u8", "", "", false),
+    ("dyn Fn", 't', "", "dyn Fn() -> ", "u8", "", "", false),
+    ("Fn sugar", 't', "", "Fn(u8) -> ", "u8", "", "", false),
+    ("box dyn generics", 't', "", "Box<dyn A<", "u8", ">>", "", false),
+    ("assoc type", 't', "", "A<B = ", "u8", ">", "", false),
+    ("assoc bound", 't', "", "A<B: ", "C", ">", "", false),
+    ("qself", 't', "", "<", "T", " as A>::B", "", false),
+    ("type turbofish", 't', "", "A::<", "u8", ">", "", false),
+    ("impl generics", 't', "", "impl A<", "u8", ">", "", false),
+    ("lifetime generics", 't', "", "A<'a, ", "u8", ">", "", false),
+    ("paren type", 't', "", "(", "u8", ")", "", false),
+    ("tuple type", 't', "", "(", "u8", ",)", "", false),
+    ("slice", 't', "", "[", "u8", "]", "", false),
+    ("array type", 't', "", "[", "u8", "; 1]", "", false),
+    ("fn params", 't', "", "fn(", "u8", ")", "", false),
+    ("Fn args", 't', "", "Fn(", "u8", ")", "", false),
+    ("type macro", 't', "", "m!(", "u8", ")", "", true),
+    ("array length", 't', "", "[u8; { let x: ", "u8", "; 1 }]", "", false),
+    ("const argument", 't', "", "A<{ let x: ", "u8", "; 1 }>", "", false),
+    ("ref pattern", 'p', "", "&", "x", "", "", false),
+    ("ref mut pattern", 'p', "", "&mut ", "x", "", "", false),
+    ("box pattern", 'p', "", "box ", "x", "", "", false),
+    ("binding", 'p', "", "a @ ", "x", "", "", false),
+    ("mut binding", 'p', "", "ref mut a @ ", "x", "", "", false),
+    ("paren pattern", 'p', "", "(", "x", ")", "", false),
+    ("tuple pattern", 'p', "", "(", "x", ",)", "", false),
+    ("slice pattern", 'p', "", "[", "x", "]", "", false),
+    ("tuple struct pattern", 'p', "", "S(", "x", ")", "", false),
+    ("struct pattern", 'p', "", "S { a: ", "x", " }", "", false),
+    ("const pattern", 'p', "", "const { ", "1", " }", "", false),
+    ("pattern turbofish", 'p', "A::<", "Vec<", "u8", ">", ">", false),
+    ("pattern macro", 'p', "", "m!(", "x", ")", "", true),
+    ("range pattern", 'p', "", "(", "1..=2", ")", "", false),
+    ("modules", 'f', "", "mod m { ", "", "}", "", false),
+    ("functions", 'f', "", "fn f() { ", "", "}", "", false),
+    ("impls", 'f', "", "impl A { fn f() { ", "", "} }", "", false),
+    ("traits", 'f', "", "trait A { fn f() { ", "", "} }", "", false),
+    ("const items", 'f', "", "const _: () = { ", "", " };", "", false),
+    ("static items", 'f', "", "static S: () = { ", "", " };", "", false),
+    ("enum discriminants", 'f', "", "enum E { A = { ", "", " 1 } }", "", false),
+    ("struct array fields", 'f', "", "struct S([u8; { ", "", " 1 }]);", "", false),
+    ("type aliases", 'f', "", "type A = [u8; { ", "", " 1 }];", "", false),
+    ("impl consts", 'f', "", "impl A { const X: () = { ", "", " }; }", "", false),
+    ("trait consts", 'f', "", "trait A { const X: () = { ", "", " }; }", "", false),
+    (
+        "extern statics",
+        'f',
+        "",
+        "extern \"C\" { static X: [u8; { ",
+        "",
+        " 1 }]; }",
+        "",
+        false,
+    ),
+    ("let initializers", 'f', "", "fn f() { let a = { ", "", " }; }", "", false),
+    ("use groups", 'f', "use ", "a::{", "b", "}", ";", false),
+    ("item attributes", 'f', "#[a", "(", "x", ")", "] fn f() {}", true),
+    ("where clauses", 'f', "fn f() where T: ", "A<", "B", ">", " {}", false),
+    ("generic bounds", 'f', "fn f<T: ", "A<", "B", ">", ">() {}", false),
+    ("generic defaults", 'f', "struct S<T = ", "A<", "B", ">", ">;", false),
+    ("macro_rules", 'f', "macro_rules! m { ", "(", "", ")", " }", true),
+    ("macro 2.0", 'f', "macro m { ", "(", "", ")", " }", true),
+    ("item macro", 'f', "", "m! { ", "", " }", "", true),
+    ("fn return impl", 'f', "fn f() -> ", "impl Fn() -> ", "u8", "", " {}", false),
+    (
+        "closure return impl",
+        'e',
+        "|| -> ",
+        "impl Fn() -> ",
+        "u8",
+        "",
+        " { x }",
+        false,
+    ),
+    ("nested blocks", 'b', "", "{ ", "x", " }", "", false),
+    ("ifs in a block", 'b', "{ ", "if a { ", "x", " }", " }", false),
+];
 
-    for (source, kind) in [
-        (format!("{}a", "!".repeat(depth)), "expression"),
-        (format!("{}a{}", "(".repeat(depth), ")".repeat(depth)), "expression"),
-        (format!("{}a{}", "{".repeat(depth), "}".repeat(depth)), "expression"),
-        (format!("{}a{}", "f(".repeat(depth), ")".repeat(depth)), "expression"),
-        (format!("{}a", "|x| ".repeat(depth)), "expression"),
-        (format!("{}a", "return ".repeat(depth)), "expression"),
-        (format!("{}a", "a = ".repeat(depth)), "expression"),
-        (
-            format!("{}a{}", "match a { _ => ".repeat(depth), " }".repeat(depth)),
-            "expression",
-        ),
-        (format!("{}u8", "&".repeat(depth)), "type"),
-        (format!("{}u8{}", "Vec<".repeat(depth), ">".repeat(depth)), "type"),
-        (format!("{}a", "&".repeat(depth)), "pattern"),
-        (format!("{}a{}", "(".repeat(depth), ")".repeat(depth)), "pattern"),
-        (format!("{}{}", "mod m { ".repeat(depth), "}".repeat(depth)), "file"),
-    ] {
-        let label: String = source.chars().take(16).collect();
-        let error = on_small_stack(move || {
-            let error = match kind {
-                "expression" => moxy::parse!(source as moxy::ast::Expr).err(),
-                "type" => moxy::parse!(source as moxy::ast::Type).err(),
-                "pattern" => moxy::parse!(source as moxy::ast::Pattern).err(),
-                _ => moxy::parse!(source as moxy::ast::File).err(),
-            };
-            error.map(|error| error.message().to_string())
-        });
-        assert_eq!(error.as_deref(), Some(message.as_str()), "{kind} {label}");
+// A nested construct `n` levels deep
+fn nested(case: usize, n: usize) -> String {
+    let (_, _, before, open, center, close, after, _) = NESTED[case];
+    format!("{before}{}{center}{}{after}", open.repeat(n), close.repeat(n))
+}
+
+// The deepest nesting of a construct that the lexer accepts, at most 50,000
+// levels: as deep as a source, or a stream from the compiler or proc-macro2,
+// can nest it
+fn deepest_lexed(case: usize) -> usize {
+    let lexes = |n: usize| nested(case, n).parse::<TokenStream>().is_ok();
+
+    if lexes(50_000) {
+        return 50_000;
     }
 
-    let error = on_small_stack(move || {
-        format!("{}{}", "[".repeat(depth), "]".repeat(depth))
-            .parse::<moxy::token::TokenStream>()
+    let (mut low, mut high) = (1, 50_000);
+
+    while high - low > 1 {
+        let middle = (low + high) / 2;
+
+        if lexes(middle) {
+            low = middle;
+        } else {
+            high = middle;
+        }
+    }
+
+    low
+}
+
+// Parses, skips, and peeks a source as `T` on a 2 MiB thread, and emits,
+// clones, and drops a tree that parses; an overflow aborts the test
+fn parse_skip_and_peek<T>(source: String) -> (Result<(), String>, bool, bool)
+where
+    T: Parse + moxy::token::ToTokenStream + Clone + 'static,
+{
+    on_small_stack(move || {
+        let tokens: TokenStream = source.parse().unwrap();
+        let parser = Parser::from_tokens(&tokens);
+        let peeked = T::peek(parser.cursor());
+        let skipped = T::skip(parser.cursor()).is_some_and(|cursor| cursor.is_empty());
+        let parsed = match moxy::parse!(tokens as T) {
+            Ok(node) => {
+                let _ = node.to_token_stream();
+                drop(node.clone());
+                Ok(())
+            }
+            Err(error) => Err(error.message().to_string()),
+        };
+        (parsed, skipped, peeked)
+    })
+}
+
+#[test]
+fn every_construct_nested_to_the_lexer_limit_reports_the_depth() {
+    use moxy::ast::{Expr, File, Pattern, StmtBlock, Type};
+
+    let message = format!("nesting is deeper than {} levels", moxy::token::MAX_DEPTH);
+
+    for (case, &(name, kind, .., unbounded)) in NESTED.iter().enumerate() {
+        let run = match kind {
+            'e' => parse_skip_and_peek::<Expr>,
+            't' => parse_skip_and_peek::<Type>,
+            'p' => parse_skip_and_peek::<Pattern>,
+            'b' => parse_skip_and_peek::<StmtBlock>,
+            _ => parse_skip_and_peek::<File>,
+        };
+
+        // Two levels are well formed
+        assert_eq!(run(nested(case, 2)), (Ok(()), true, true), "{name} at 2 levels");
+
+        // As deep as the lexer accepts, the parser reports its own depth error
+        // and skipping fails, unless the construct is unbounded
+        let n = deepest_lexed(case);
+        let expected = if unbounded {
+            (Ok(()), true, true)
+        } else {
+            (Err(message.clone()), false, true)
+        };
+        assert_eq!(run(nested(case, n)), expected, "{name} at {n} levels");
+    }
+}
+
+#[test]
+fn the_lexer_and_the_parser_report_the_depth_apart() {
+    let depth = moxy::token::MAX_DEPTH;
+    let lexer = on_small_stack(move || {
+        format!("{}{}", "[".repeat(depth + 1), "]".repeat(depth + 1))
+            .parse::<TokenStream>()
             .unwrap_err()
             .to_string()
     });
-    assert_eq!(error, message);
+    assert_eq!(lexer, format!("delimiters nest deeper than {depth} levels"));
+
+    let parser = moxy::parse!((format!("{}a", "!".repeat(depth + 1))) as moxy::ast::Expr)
+        .err()
+        .unwrap();
+    assert_eq!(parser.message(), format!("nesting is deeper than {depth} levels"));
 }
 
 #[test]
@@ -397,6 +618,12 @@ where
     let parses = move |n: usize| {
         let source = make(n);
         let message = message.clone();
+
+        // Deeper than the lexer accepts: the parser never sees it
+        if source.parse::<TokenStream>().is_err() {
+            return false;
+        }
+
         on_small_stack(move || match moxy::parse!(source as T) {
             Ok(node) => {
                 traverse(node, visit);
@@ -776,27 +1003,64 @@ fn a_chain_of_atoms_costs_no_level_of_its_own() {
     assert_eq!(error.message(), message);
 }
 
+// A proc-macro2 stream of `n` nested groups
 #[cfg(feature = "proc-macro2")]
-#[test]
-fn a_token_stream_nested_any_depth_converts_drops_and_reports_the_depth() {
+fn nested_proc_macro2_groups(n: usize) -> proc_macro2::TokenStream {
     use proc_macro2::{Delimiter, Group, TokenStream, TokenTree};
 
-    // Streams from the compiler or proc-macro2 are not lexed, so the lexer's
-    // limit on groups never sees them
-    let message = format!("nesting is deeper than {} levels", moxy::token::MAX_DEPTH);
-    let reported = on_small_stack(|| {
-        let mut stream = TokenStream::new();
+    (0..n).fold(TokenStream::new(), |stream, _| {
+        TokenTree::Group(Group::new(Delimiter::Brace, stream)).into()
+    })
+}
 
-        for _ in 0..50_000 {
-            stream = TokenTree::Group(Group::new(Delimiter::Brace, stream)).into();
-        }
+#[cfg(feature = "proc-macro2")]
+#[test]
+fn a_token_stream_nested_past_the_depth_limit_is_refused_when_converted() {
+    use moxy::token::TryIntoTokenStream;
 
-        let tokens: moxy::token::TokenStream = stream.into();
-        let parser = moxy::ast::Parser::from_tokens(&tokens);
-        let error = <moxy::ast::StmtBlock as moxy::ast::Parse>::parse(&parser).err().unwrap();
-        error.message().to_string()
+    // Streams from the compiler or proc-macro2 are not lexed, so converting
+    // one counts its groups as the lexer does, and no deeper stream exists for
+    // the traversals that recurse per group
+    let depth = moxy::token::MAX_DEPTH;
+    let (refused, parsed, converted) = on_small_stack(move || {
+        let refused = nested_proc_macro2_groups(50_000)
+            .try_into_token_stream()
+            .unwrap_err()
+            .to_string();
+        let parsed = moxy::parse!((nested_proc_macro2_groups(depth + 1)) as moxy::ast::StmtBlock)
+            .err()
+            .map(|error| error.message().to_string());
+        let converted = nested_proc_macro2_groups(depth).try_into_token_stream().is_ok();
+        (refused, parsed, converted)
     });
-    assert_eq!(reported, message);
+    let message = format!("delimiters nest deeper than {depth} levels");
+    assert_eq!(
+        (refused.as_str(), parsed.as_deref(), converted),
+        (message.as_str(), Some(message.as_str()), true)
+    );
+}
+
+#[cfg(feature = "proc-macro2")]
+#[test]
+fn converting_a_token_stream_past_the_depth_limit_without_an_error_panics() {
+    let depth = moxy::token::MAX_DEPTH;
+    let panicked = std::panic::catch_unwind(|| moxy::token::TokenStream::from(nested_proc_macro2_groups(depth + 1)));
+    let message = panicked
+        .err()
+        .and_then(|payload| payload.downcast::<String>().ok())
+        .map(|message| *message);
+    let expected = format!("delimiters nest deeper than {depth} levels; use `try_into_token_stream` to get this as an error");
+    assert_eq!(message, Some(expected));
+}
+
+#[test]
+fn an_error_quotes_a_group_by_its_delimiters() {
+    // A message that printed the whole group printed every macro body it met
+    let error = moxy::parse!("{ a b c }" as moxy::token::Ident).err().unwrap();
+    assert_eq!(error.message(), "expected ident, received \"{ ... }\"");
+
+    let error = moxy::parse!("()" as moxy::token::Ident).err().unwrap();
+    assert_eq!(error.message(), "expected ident, received \"()\"");
 }
 
 #[test]
