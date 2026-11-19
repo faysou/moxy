@@ -77,3 +77,21 @@ fn negative_literals_are_patterns() {
         "match x {- 1 => {} (- 2 , - 2.5) => {}}"
     );
 }
+
+#[test]
+fn formatting_keeps_the_qualifier_of_qualified_paths() {
+    for (source, formatted) in [
+        ("match x { <T as U>::C => {} }", "match x {\n\t<T as U>::C => {},\n}"),
+        ("match x { <T>::D(a) => {} }", "match x {\n\t<T>::D(a) => {},\n}"),
+        (
+            "match x { <T as a::U>::S { a: 1 } => {} }",
+            "match x {\n\t<T as a::U>::S {\n\t\ta: 1,\n\t} => {},\n}",
+        ),
+        ("<T as U>::f(x)", "<T as U>::f(x)"),
+        ("<T as U>::S { a: 1 }", "<T as U>::S {\n\ta: 1,\n}"),
+        ("<Vec<u8>>::new::<A>()", "<Vec<u8>>::new::<A>()"),
+    ] {
+        let expression: moxy::ast::Expr = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        assert_eq!(moxy::fmt!(&expression).unwrap(), formatted);
+    }
+}
