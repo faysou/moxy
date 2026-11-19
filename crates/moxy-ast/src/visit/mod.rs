@@ -11,10 +11,6 @@ mod macros;
 
 use crate::*;
 
-/// `ItemMod::content` is `Option<Delimited<Vec<Item>>>`; the inner delimited
-/// item list gets its own visitor so the macro field can reference it by name.
-type ItemModContent = Delimited<Vec<Item>>;
-
 define_visit! {
     // ===== expressions ===================================================
     enum Expr {
@@ -923,6 +919,14 @@ define_visit! {
             semi_punct: skip,
         }
     }
+    struct ItemModContent {
+        visit: visit_item_mod_content, visit_mut: visit_item_mod_content_mut,
+        walk: walk_item_mod_content, walk_mut: walk_item_mod_content_mut,
+        fields {
+            inner_attrs => visit_attributes / visit_attributes_mut,
+            items: seq => visit_item / visit_item_mut,
+        }
+    }
     struct ItemMod {
         visit: visit_item_mod, visit_mut: visit_item_mod_mut,
         walk: walk_item_mod, walk_mut: walk_item_mod_mut,
@@ -932,7 +936,6 @@ define_visit! {
             unsafety: leaf,
             mod_keyword: skip,
             ident: skip,
-            inner_attrs => visit_attributes / visit_attributes_mut,
             content: opt => visit_item_mod_content / visit_item_mod_content_mut,
             semi_punct: skip,
         }
@@ -1819,11 +1822,6 @@ define_visit! {
         walk: walk_closure_param, walk_mut: walk_closure_param_mut,
         manual {}
     }
-    manual ItemModContent {
-        visit: visit_item_mod_content, visit_mut: visit_item_mod_content_mut,
-        walk: walk_item_mod_content, walk_mut: walk_item_mod_content_mut,
-        manual {}
-    }
 }
 
 // ===== hand-written walkers for irregular nodes ==========================
@@ -1938,17 +1936,5 @@ pub fn walk_closure_param_mut<V: VisitMut>(v: &mut V, node: &mut ClosureParam) {
             v.visit_type_mut(ty);
         }
         ClosureParam::Inferred { pat } => v.visit_pattern_mut(pat),
-    }
-}
-
-/// `ItemMod::content` is `Option<Delimited<Vec<Item>>>`; iterate the inner items.
-pub fn walk_item_mod_content<'ast, V: Visit<'ast>>(v: &mut V, node: &'ast Delimited<Vec<Item>>) {
-    for item in &node.inner {
-        v.visit_item(item);
-    }
-}
-pub fn walk_item_mod_content_mut<V: VisitMut>(v: &mut V, node: &mut Delimited<Vec<Item>>) {
-    for item in &mut node.inner {
-        v.visit_item_mut(item);
     }
 }

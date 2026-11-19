@@ -339,9 +339,9 @@ impl Format for ItemMod {
         if let Some(content) = &self.content {
             f.text(" {")?;
             f.indent(|f| {
-                super::attr::inner_attrs(&self.inner_attrs, f)?;
+                super::attr::inner_attrs(&content.inner_attrs, f)?;
 
-                for (i, item) in content.inner.iter().enumerate() {
+                for (i, item) in content.items.inner.iter().enumerate() {
                     f.hard_break()?;
                     if i > 0 {
                         f.hard_break()?;
@@ -352,7 +352,7 @@ impl Format for ItemMod {
                 Ok(())
             })?;
 
-            if !content.inner.is_empty() || !self.inner_attrs.is_empty() {
+            if !content.items.inner.is_empty() || !content.inner_attrs.is_empty() {
                 f.hard_break()?;
             }
 
