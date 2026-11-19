@@ -40,9 +40,6 @@ TOKENS f: fn f() where {}
 TOKENS t: A<T, 'a>
 TOKENS f: trait A: {}
 TOKENS f: enum E { pub A }
-TOKENS f: #!/usr/bin/env rust\n fn f() {}
-TOKENS f: #!/bin/sh\nfn f() {}
-TOKENS f: #!/usr/bin/env rust\n#![allow(a)]\nfn main() {}
 
 # Valid Rust that moxy rejects
 REJECT e: a.0.1
@@ -109,13 +106,6 @@ REJECT f: fn f() { #![a] }
 REJECT f: impl A { #![a] }
 REJECT f: fn f() { loop { #![a] } }
 REJECT f: fn f() { match x { #![a] } }
-REJECT f: #!/usr/bin/env -S cargo +nightly -Zscript\nfn main() {}
-REJECT f: #!/usr/local/bin/rust-script.sh\nfn main() {}
-REJECT f: #!/usr/bin/env rust-script\nfn main() {}
-REJECT f: #!/bin/sh -c 'exec rustc "$0"'\nfn main() {}
-REJECT f: #!/usr/bin/rustc --edition=2021\nfn main() {}
-REJECT f: #!/usr/bin/env run-cargo-script\n//! doc\nfn main() {}
-REJECT f: #!\nfn main() {}
 REJECT f: fn f() { 1f16; 1.0f128; 1f16; 2b; 1px; 1em; 0x1p3; 1_; 1__; }
 REJECT i: mod m { #![allow(x)] }
 REJECT i: fn f() { #![allow(x)] }
@@ -254,3 +244,9 @@ TOKENS f: struct S<T: >(T);
 TOKENS f: struct S<>;
 TOKENS f: fn f<>() {}
 TOKENS i: struct S<T: >(T);
+
+# Intentional: moxy keeps a shebang of a path and one word as the file's
+# shebang tokens, which syn drops from the tokens
+TOKENS f: #!/usr/bin/env rust\n fn f() {}
+TOKENS f: #!/bin/sh\nfn f() {}
+TOKENS f: #!/usr/bin/env rust\n#![allow(a)]\nfn main() {}
