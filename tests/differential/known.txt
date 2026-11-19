@@ -85,9 +85,6 @@ REJECT t: 'a + A
 ACCEPT f: use a::{::b};
 ACCEPT b: { let a | b = c; }
 ACCEPT b: { let | a = c; }
-ACCEPT e: a .. = b
-ACCEPT e: a..b = c
-ACCEPT e: a..b = c..d
 ACCEPT f: fn f() { 1 .. 2; 1 . 2; 1. 2; 1 .2; }
 ACCEPT f: impl A { type T where Self: Sized = u8; }
 ACCEPT f: safe fn f() {}
@@ -138,9 +135,6 @@ TOKENS f: trait A: {}
 TOKENS f: #!/usr/bin/env rust\n fn f() {}
 TOKENS f: #!/bin/sh\nfn f() {}
 TOKENS f: #!/usr/bin/env rust\n#![allow(a)]\nfn main() {}
-
-# Valid Rust that moxy rejects: a range as the end of another range
-REJECT e: a.. ..b
 
 # Intentional: rustc rejects these after parsing, as moxy does while parsing:
 # a keyword as a lifetime name and an associated type without a type in an impl

@@ -401,12 +401,13 @@ fn binary_rest(mut cursor: Cursor<'_>, context: ExprContext, min: Precedence) ->
     Some(cursor)
 }
 
-fn range(mut cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
+// Skips a range or the operand of one, and tells whether a range ended it
+fn range(mut cursor: Cursor<'_>, context: ExprContext) -> Option<(Cursor<'_>, bool)> {
     if !RangeLimits::peek(cursor) {
         cursor = binary(cursor, context)?;
 
         if !RangeLimits::peek(cursor) {
-            return Some(cursor);
+            return Some((cursor, false));
         }
     }
 
@@ -414,28 +415,49 @@ fn range(mut cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
     let closed = <Token![..=]>::peek(cursor);
     cursor = RangeLimits::skip(cursor)?;
 
-    if !context.is_end(cursor) && peek::expr(cursor, context) {
-        return binary(cursor, context);
+    if peek::nested_range(cursor) {
+        return range(cursor, context);
     }
 
-    (!closed).then_some(cursor)
+    if !context.is_end(cursor) && peek::expr(cursor, context) {
+        return Some((binary(cursor, context)?, true));
+    }
+
+    (!closed).then_some((cursor, true))
 }
 
-fn assignment(mut cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
-    cursor = range(cursor, context)?;
+fn assignment(cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
+    assignment_ranged(cursor, context).map(|(cursor, _)| cursor)
+}
 
-    let assign = <Token![=]>::peek(cursor) && !<Token![==]>::peek(cursor) && !<Token![=>]>::peek(cursor);
-    let compound = peek_binary(cursor).is_some_and(|op| Precedence::of(&op) == Precedence::Assign);
+// Skips an assignment as the parser parses it, and tells whether a range
+// ended it
+fn assignment_ranged(cursor: Cursor<'_>, context: ExprContext) -> Option<(Cursor<'_>, bool)> {
+    let (mut cursor, ranged) = range(cursor, context)?;
 
-    if assign || compound {
+    if ranged {
+        return Some((cursor, true));
+    }
+
+    loop {
+        let assign = <Token![=]>::peek(cursor) && !<Token![==]>::peek(cursor) && !<Token![=>]>::peek(cursor);
+        let compound = peek_binary(cursor).is_some_and(|op| Precedence::of(&op) == Precedence::Assign);
+
+        if !assign && !compound {
+            return Some((cursor, false));
+        }
+
         cursor = if assign {
             <Token![=]>::skip(cursor)?
         } else {
             BinOp::skip(cursor)?
         };
         let _depth = moxy_token::Depth::enter()?;
-        cursor = assignment(cursor, context)?;
-    }
+        let (next, ranged) = assignment_ranged(cursor, context)?;
+        cursor = next;
 
-    Some(cursor)
+        if !ranged {
+            return Some((cursor, false));
+        }
+    }
 }
