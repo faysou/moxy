@@ -33,12 +33,8 @@ pub(crate) fn single(parser: &Parser) -> Result<Pattern, ParseError> {
         return Ok(Pattern::Slice(<_ as Parse>::parse(parser)?));
     }
 
-    if PatTuple::peek(parser.cursor()) {
-        return Ok(Pattern::Tuple(<_ as Parse>::parse(parser)?));
-    }
-
-    if PatParen::peek(parser.cursor()) {
-        return Ok(Pattern::Paren(<_ as Parse>::parse(parser)?));
+    if Attributes::skip(parser.cursor()).is_some_and(|cursor| cursor.is_delimited(moxy_token::Delim::Paren)) {
+        return paren_or_tuple(parser);
     }
 
     if PatMacro::peek(parser.cursor()) {
@@ -66,4 +62,27 @@ pub(crate) fn single(parser: &Parser) -> Result<Pattern, ParseError> {
     }
 
     parser.error("expected pattern").into()
+}
+
+// Parses the parenthesized patterns once and then tells a tuple from a
+// parenthesized pattern, so nested parentheses parse in linear time. One
+// pattern without a trailing comma, other than `..`, is parenthesized.
+fn paren_or_tuple(parser: &Parser) -> Result<Pattern, ParseError> {
+    let attrs = <_ as Parse>::parse(parser)?;
+    let (span, inner) = parser.parse_group_spanned(moxy_token::Delim::Paren)?;
+    let mut elems: List<Pattern, Token![,]> = List::parse_all(&inner)?;
+
+    if elems.len() == 1 && !elems.is_trailing() && !elems.first().is_some_and(Pattern::is_rest) {
+        let content = elems.pop().map(|pair| pair.into_value()).expect("one pattern");
+
+        return Ok(Pattern::Paren(PatParen {
+            attrs,
+            content: Delimited::paren(span, Box::new(content)),
+        }));
+    }
+
+    Ok(Pattern::Tuple(PatTuple {
+        attrs,
+        elems: Delimited::paren(span, elems),
+    }))
 }
