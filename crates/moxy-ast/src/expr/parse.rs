@@ -143,7 +143,7 @@ fn range_rest(
 
 // The binding strength of a binary operator, weakest first
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-enum Precedence {
+pub(super) enum Precedence {
     Assign,
     Or,
     And,
@@ -157,7 +157,7 @@ enum Precedence {
 }
 
 impl Precedence {
-    fn of(op: &BinOp) -> Self {
+    pub(super) fn of(op: &BinOp) -> Self {
         match op {
             BinOp::ShlAssign(_)
             | BinOp::ShrAssign(_)
@@ -181,7 +181,7 @@ impl Precedence {
         }
     }
 
-    fn next(self) -> Option<Self> {
+    pub(super) fn next(self) -> Option<Self> {
         match self {
             Self::Assign => Some(Self::Or),
             Self::Or => Some(Self::And),
@@ -198,7 +198,7 @@ impl Precedence {
 }
 
 // The binary operator that continues the expression here, if any
-fn peek_binary(cursor: Cursor<'_>) -> Option<BinOp> {
+pub(super) fn peek_binary(cursor: Cursor<'_>) -> Option<BinOp> {
     if !BinOp::peek(cursor) {
         return None;
     }
@@ -270,7 +270,7 @@ fn cast_to(parser: &Parser, expr: Box<Expr>) -> Result<Box<Expr>, ParseError> {
 }
 
 pub(crate) fn unary(parser: &Parser, attrs: Attributes) -> Result<Expr, ParseError> {
-    Ok(*unary_with(parser, attrs, ExprContext::PATTERN_BOUND)?)
+    Ok(*unary_with(parser, attrs, ExprContext::NORMAL)?)
 }
 
 // Outer attributes belong to the operand of a binary operator or cast: the
