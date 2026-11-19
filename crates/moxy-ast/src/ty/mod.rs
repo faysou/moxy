@@ -560,12 +560,11 @@ impl Parse for Type {
             return TypeBareFn::skip(cursor);
         }
 
+        // A parenthesized type and a tuple skip alike, each element once, so
+        // nested parentheses skip in linear time
         if cursor.is_delimited(Delim::Paren) {
-            if TypeParen::peek(cursor) {
-                return TypeParen::skip(cursor);
-            }
-
-            return TypeTuple::skip(cursor);
+            let inner = List::<Type, Token![,]>::skip_while_present(cursor.descend(Delim::Paren)?)?;
+            return inner.is_empty().then(|| cursor.offset(1));
         }
 
         if cursor.is_delimited(Delim::None) {

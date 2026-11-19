@@ -493,6 +493,11 @@ impl<'a, T, P> IntoIterator for &'a mut List<T, P> {
 
 impl<T: Spanner, P> List<T, P> {
     pub fn span(&self) -> Span {
+        // One value spans once, so nested lists span in linear time
+        if self.len() == 1 {
+            return self.first().map(|v| v.span()).unwrap_or_default();
+        }
+
         let first = self.first().map(|v| v.span()).unwrap_or_default();
         let last = self.last().map(|v| v.span()).unwrap_or_default();
         first.join(last)
