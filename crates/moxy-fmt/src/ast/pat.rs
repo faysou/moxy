@@ -180,6 +180,11 @@ impl Format for PatOr {
 impl Format for PatLit {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
         self.attrs.format(f)?;
+
+        if self.minus.is_some() {
+            f.text("-")?;
+        }
+
         self.lit.format(f)
     }
 }

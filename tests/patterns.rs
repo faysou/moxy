@@ -68,3 +68,12 @@ fn or_patterns_keep_a_leading_vert() {
         "match x {| 1 | 2 => {}}"
     );
 }
+
+#[test]
+fn negative_literals_are_patterns() {
+    let expression: moxy::ast::Expr = moxy::parse!("match x { -1 => {} (-2, -2.5) => {} }").unwrap();
+    assert_eq!(
+        moxy::token::ToTokenStream::to_token_stream(&expression).to_string(),
+        "match x {- 1 => {} (- 2 , - 2.5) => {}}"
+    );
+}
