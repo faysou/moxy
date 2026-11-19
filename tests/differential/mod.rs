@@ -26,18 +26,26 @@ const KNOWN: &str = include_str!("known.txt");
 type Rendering = Result<(String, String), String>;
 
 fn moxy_render(kind: &str, source: &str) -> Rendering {
-    fn go<T: m::Parse + ToTokenStream>(source: &str, canon: fn(&T) -> String) -> Rendering {
-        let node: T = moxy::parse!(source).map_err(|error| error.message().to_string())?;
+    fn go<T: m::Parse + ToTokenStream>(tokens: &TokenStream, canon: fn(&T) -> String) -> Rendering {
+        let node: T = moxy::parse!(tokens).map_err(|error| error.message().to_string())?;
         Ok((canon(&node), strip(&node.to_token_stream().to_string())))
     }
 
+    // A file lexes as a source file, as `syn::parse_file` reads one
+    let lexed = if kind == "f" {
+        TokenStream::from_source_file(source.to_owned())
+    } else {
+        TokenStream::from_string(source.to_owned())
+    };
+    let tokens = lexed.map_err(|error| format!("{error:?}"))?;
+
     match kind {
-        "e" => go::<m::Expr>(source, mexpr),
-        "b" => go::<m::StmtBlock>(source, mblock),
-        "p" => go::<m::Pattern>(source, mpat),
-        "t" => go::<m::Type>(source, mtype),
-        "i" => go::<m::Item>(source, mitem),
-        "f" => go::<m::File>(source, |file| {
+        "e" => go::<m::Expr>(&tokens, mexpr),
+        "b" => go::<m::StmtBlock>(&tokens, mblock),
+        "p" => go::<m::Pattern>(&tokens, mpat),
+        "t" => go::<m::Type>(&tokens, mtype),
+        "i" => go::<m::Item>(&tokens, mitem),
+        "f" => go::<m::File>(&tokens, |file| {
             let items = file.items.iter().map(mitem).collect::<Vec<_>>().join("\n");
             format!("file{}\n{items}", mattrs(&file.attrs))
         }),
@@ -245,9 +253,9 @@ fn sources_that_serialize_alike_have_the_same_tree() {
 #[test]
 fn parses_of_one_source_compare_equal() {
     // The second parse reads the source shifted, so every span differs; a
-    // shebang or byte order mark only starts a source, so it stays first
+    // byte order mark only starts a source, so it stays first
     fn check<T: m::Parse + PartialEq>(source: &str) -> bool {
-        if source.starts_with("#!") || source.starts_with('\u{feff}') {
+        if source.starts_with('\u{feff}') {
             return true;
         }
 
@@ -303,13 +311,13 @@ fn directory() {
             continue;
         };
 
-        if source.parse::<TokenStream>().is_err() {
+        let Ok(tokens) = TokenStream::from_source_file(source) else {
             continue;
-        }
+        };
 
         files += 1;
 
-        let parsed = catch_unwind(AssertUnwindSafe(|| moxy::parse!(source as m::File)));
+        let parsed = catch_unwind(AssertUnwindSafe(|| moxy::parse!((&tokens) as m::File)));
         let file = match parsed {
             Err(_) => {
                 failures.push(format!("{}: panics", path.display()));

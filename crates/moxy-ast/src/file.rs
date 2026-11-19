@@ -6,6 +6,9 @@ use crate::*;
 #[cfg_attr(feature = "derives", derive(Debug, PartialEq, Eq))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct File {
+    /// A shebang of a path and an optional word, as `#!/usr/bin/env rust`,
+    /// read from tokens such as `parse!` lexes from a string. The tokens of
+    /// `TokenStream::from_source_file` hold no shebang line, which it skips.
     pub shebang: Option<Shebang>,
     pub attrs: Attributes,
     pub items: Vec<Item>,

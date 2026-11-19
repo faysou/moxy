@@ -349,6 +349,11 @@ fn field_shorthand_fixture_parses_and_round_trips() {
 
 #[test]
 fn a_file_may_start_with_a_byte_order_mark_and_a_shebang_line() {
+    let parse_file = |source: &str| {
+        let tokens = moxy::token::TokenStream::from_source_file(source.to_owned()).unwrap();
+        moxy::parse!(tokens as File).unwrap_or_else(|error| panic!("`{source}`: {error}"))
+    };
+
     for source in [
         "\u{feff}fn main() {}",
         "#!/usr/bin/env -S cargo +nightly -Zscript\nfn main() {}",
@@ -356,19 +361,45 @@ fn a_file_may_start_with_a_byte_order_mark_and_a_shebang_line() {
         "#!\nfn main() {}",
         "\u{feff}#!/usr/bin/env run-cargo-script\n//! doc\nfn main() {}",
     ] {
-        let file: File = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
-        assert_eq!(file.items.len(), 1, "`{source}`");
+        assert_eq!(parse_file(source).items.len(), 1, "`{source}`");
     }
 
     // `#!` with a `[` after it is an inner attribute
-    let file: File = moxy::parse!("#![allow(a)]\nfn main() {}").unwrap();
-    assert_eq!(file.attrs.len(), 1);
+    assert_eq!(parse_file("#![allow(a)]\nfn main() {}").attrs.len(), 1);
 
     // A shebang is its first line alone, so the next line's tokens are items
     for source in ["#!/bin/sh\nfoo::m!();", "#!/bin/sh\nm! {}", "#!/usr/bin/env rust\nm! {}"] {
-        let file: File = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        let file = parse_file(source);
         assert_eq!(file.items.len(), 1, "`{source}`");
         let item = file.items[0].to_token_stream().to_string();
+        assert!(file.shebang.is_none(), "`{source}`");
         assert!(item.starts_with("foo") || item.starts_with('m'), "`{source}`: {item}");
+    }
+}
+
+// The text of a source file skips a shebang line; any other string lexes `#!`
+// as tokens, as `proc_macro2` does. Both skip a byte order mark.
+#[test]
+fn only_source_file_text_skips_a_shebang_line() {
+    use moxy::token::TokenStream;
+
+    for (source, file, tokens) in [
+        (
+            "#!/usr/bin/env x\nfn f() {}",
+            "fn f () {}",
+            "# ! / usr / bin / env x fn f () {}",
+        ),
+        ("#![a]", "# ! [a]", "# ! [a]"),
+        ("#!a b", "", "# ! a b"),
+        ("\u{feff}fn f() {}", "fn f () {}", "fn f () {}"),
+        ("\u{feff}#!a b\nc", "c", "# ! a b c"),
+    ] {
+        let from_file = TokenStream::from_source_file(source.to_owned()).unwrap();
+        let from_string = TokenStream::from_string(source.to_owned()).unwrap();
+        let parsed: TokenStream = source.parse().unwrap();
+
+        assert_eq!(from_file.to_string(), file, "`{source}`");
+        assert_eq!(from_string.to_string(), tokens, "`{source}`");
+        assert_eq!(parsed.to_string(), tokens, "`{source}`");
     }
 }
