@@ -783,8 +783,14 @@ impl Format for ImplItemFn {
         }
 
         self.sig.format(f)?;
-        f.text(" ")?;
-        self.body.format(f)
+
+        match &self.body {
+            Some(body) => {
+                f.text(" ")?;
+                body.format(f)
+            }
+            None => f.text(";"),
+        }
     }
 }
 
@@ -833,8 +839,12 @@ impl Format for ImplItemType {
         self.ident.format(f)?;
         self.generics.format(f)?;
         self.generics.where_clause.format(f)?;
-        f.text(" = ")?;
-        self.ty.format(f)?;
+
+        if let Some(ty) = &self.ty {
+            f.text(" = ")?;
+            ty.format(f)?;
+        }
+
         self.where_clause_after.format(f)?;
         f.text(";")
     }

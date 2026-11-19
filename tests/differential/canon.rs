@@ -1067,10 +1067,10 @@ pub(super) fn mitem(i: &m::Item) -> String {
                 .map(|it| match it {
                     m::ImplItem::Fn(f) => format!(
                         "{}{}{} {}",
-                        mattrs_with(&f.attrs, &f.body.inner_attrs),
+                        mattrs_with(&f.attrs, &f.body.as_ref().map(|b| b.inner_attrs.clone()).unwrap_or_default()),
                         mt(&f.vis),
                         msig(&f.sig),
-                        mblock(&f.body)
+                        mbody(&f.body)
                     ),
                     other => format!("tokens<{}>", mt(other)),
                 })

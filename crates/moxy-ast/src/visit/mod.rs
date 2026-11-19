@@ -1195,7 +1195,8 @@ define_visit! {
             vis => visit_visibility / visit_visibility_mut,
             defaultness: leaf,
             sig => visit_signature / visit_signature_mut,
-            body => visit_stmt_block / visit_stmt_block_mut,
+            body: opt => visit_stmt_block / visit_stmt_block_mut,
+            semi: skip,
         }
     }
     struct ImplItemConst {
@@ -1226,7 +1227,7 @@ define_visit! {
             ident: skip,
             generics => visit_generics / visit_generics_mut,
             eq: skip,
-            ty => visit_type / visit_type_mut,
+            ty: opt => visit_type / visit_type_mut,
             where_clause_after: opt => visit_where_clause / visit_where_clause_mut,
             semi: skip,
         }
