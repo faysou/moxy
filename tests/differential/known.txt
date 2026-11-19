@@ -81,8 +81,9 @@ REJECT f: macro_rules! try { () => {} }
 REJECT t: 'a + A
 
 # Intentional: rustc's parser accepts these and rejects them later, which syn
-# rejects while parsing
+# rejects while parsing or keeps as tokens
 ACCEPT f: use a::{::b};
+TREE f: trait A { pub fn f(); }
 ACCEPT b: { let a | b = c; }
 ACCEPT b: { let | a = c; }
 ACCEPT f: fn f() { 1 .. 2; 1 . 2; 1. 2; 1 .2; }
@@ -93,11 +94,8 @@ ACCEPT f: struct S { mut a: u8 }
 ACCEPT f: unsafe static X: u8 = 1;
 ACCEPT f: use Self::A;
 ACCEPT f: use a::Self;
-REJECT f: extern "C" { fn f() {} }
-REJECT f: extern "C" { type T: A; }
 REJECT f: static X = 1;
 REJECT f: trait A = ;
-REJECT f: trait A { pub fn f(); }
 REJECT f: trait A<T> = B<T> where T: C;
 
 # Intentional: a type alias's where clause before `=`, the older place, emits

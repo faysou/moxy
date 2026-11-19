@@ -862,6 +862,12 @@ impl Format for TraitItem {
 impl Format for TraitItemFn {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
         self.attrs.format(f)?;
+        self.vis.format(f)?;
+
+        if !matches!(self.vis, moxy_ast::Visibility::Inherited) {
+            f.text(" ")?;
+        }
+
         self.sig.format(f)?;
 
         if let Some(body) = &self.body {
@@ -878,6 +884,12 @@ impl Format for TraitItemFn {
 impl Format for TraitItemConst {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
         self.attrs.format(f)?;
+        self.vis.format(f)?;
+
+        if !matches!(self.vis, moxy_ast::Visibility::Inherited) {
+            f.text(" ")?;
+        }
+
         f.text("const ")?;
         self.ident.format(f)?;
         self.generics.format(f)?;
@@ -896,6 +908,12 @@ impl Format for TraitItemConst {
 impl Format for TraitItemType {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
         self.attrs.format(f)?;
+        self.vis.format(f)?;
+
+        if !matches!(self.vis, moxy_ast::Visibility::Inherited) {
+            f.text(" ")?;
+        }
+
         f.text("type ")?;
         self.ident.format(f)?;
         self.generics.format(f)?;
@@ -952,7 +970,13 @@ impl Format for ForeignItemFn {
         }
 
         self.sig.format(f)?;
-        f.text(";")
+
+        if let Some(body) = &self.body {
+            f.text(" ")?;
+            body.format(f)
+        } else {
+            f.text(";")
+        }
     }
 }
 
@@ -996,6 +1020,18 @@ impl Format for ForeignItemType {
         f.text("type ")?;
         self.ident.format(f)?;
         self.generics.format(f)?;
+
+        if !self.bounds.is_empty() {
+            f.text(": ")?;
+            self.bounds.format(f)?;
+        }
+
+        if let Some((_, default)) = &self.default {
+            f.text(" = ")?;
+            default.format(f)?;
+        }
+
+        self.generics.where_clause.format(f)?;
         f.text(";")
     }
 }
