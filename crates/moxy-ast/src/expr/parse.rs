@@ -10,7 +10,7 @@ pub(super) fn expr(parser: &Parser, context: ExprContext) -> Result<Expr, ParseE
 // The parse functions return boxed expressions, which every parent node
 // stores, so a nested expression's stack frames hold pointers, not nodes
 fn boxed_expr(parser: &Parser, context: ExprContext) -> Result<Box<Expr>, ParseError> {
-    let attrs = <_ as Parse>::parse(parser)?;
+    let attrs = Attributes::parse_outer(parser)?;
     assignment(parser, attrs, context)
 }
 

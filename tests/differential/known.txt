@@ -30,9 +30,6 @@ TREE f: mod m { #![a] #![b] use c; }
 TREE f: mod m { #![a] fn f() {} }
 TREE f: mod m { //! doc\n fn f() {} }
 TREE f: trait A { #![a] fn f(); }
-ACCEPT e: #![a] x
-ACCEPT f: #[a] #![b] fn f() {}
-ACCEPT f: fn f() { let x = [#![a] 1]; }
 
 # Intentional: nightly or unstable syntax, out of scope
 ACCEPT b: { let x = static || 1; }

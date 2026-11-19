@@ -5,7 +5,7 @@ use super::peek;
 use super::*;
 
 pub(super) fn expr(cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
-    assignment(Attributes::skip(cursor)?, context)
+    assignment(Attributes::skip_outer(cursor)?, context)
 }
 
 fn optional_expr(cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
@@ -36,7 +36,7 @@ pub(crate) fn early_block_like(cursor: Cursor<'_>) -> Option<(Cursor<'_>, bool)>
         return Some((end, true));
     }
 
-    Some((expr(cursor, ExprContext::NORMAL)?, false))
+    Some((assignment(start, ExprContext::NORMAL)?, false))
 }
 
 fn list(mut cursor: Cursor<'_>) -> Option<Cursor<'_>> {
