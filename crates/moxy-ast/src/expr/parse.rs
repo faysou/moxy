@@ -358,7 +358,9 @@ fn dot(parser: &Parser, base: Box<Expr>) -> Result<Box<Expr>, ParseError> {
         let method = parser.cursor().offset(2);
         let args = Option::<AngleArguments>::skip(method).unwrap_or(method);
 
-        if args.is_delimited(Delim::Paren) {
+        // A turbofish makes a method call even when its arguments are invalid,
+        // so their error is the one reported
+        if args.is_delimited(Delim::Paren) || <Token![::]>::peek(method) {
             return Ok(boxed(ExprMethodCall {
                 attrs: Default::default(),
                 receiver: base,
