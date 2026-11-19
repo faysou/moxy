@@ -73,7 +73,6 @@ ACCEPT t: a::Fn(A) -> B
 REJECT b: { try!(x) }
 REJECT e: try!(a)
 REJECT f: macro_rules! try { () => {} }
-REJECT t: 'a + A
 
 # Intentional: rustc's parser accepts these and rejects them later, which syn
 # rejects while parsing or keeps as tokens
