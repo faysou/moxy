@@ -709,3 +709,26 @@ fn a_chain_of_atoms_costs_no_level_of_its_own() {
     let error = moxy::parse!((parens(depth + 1)) as moxy::ast::Expr).err().unwrap();
     assert_eq!(error.message(), message);
 }
+
+#[cfg(feature = "proc-macro2")]
+#[test]
+fn a_token_stream_nested_any_depth_converts_drops_and_reports_the_depth() {
+    use proc_macro2::{Delimiter, Group, TokenStream, TokenTree};
+
+    // Streams from the compiler or proc-macro2 are not lexed, so the lexer's
+    // limit on groups never sees them
+    let message = format!("nesting is deeper than {} levels", moxy::token::MAX_DEPTH);
+    let reported = on_small_stack(|| {
+        let mut stream = TokenStream::new();
+
+        for _ in 0..50_000 {
+            stream = TokenTree::Group(Group::new(Delimiter::Brace, stream)).into();
+        }
+
+        let tokens: moxy::token::TokenStream = stream.into();
+        let parser = moxy::ast::Parser::from_tokens(&tokens);
+        let error = <moxy::ast::StmtBlock as moxy::ast::Parse>::parse(&parser).err().unwrap();
+        error.message().to_string()
+    });
+    assert_eq!(reported, message);
+}

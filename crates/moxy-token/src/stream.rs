@@ -50,13 +50,13 @@ impl TokenStream {
     }
 
     #[inline]
-    pub fn into_inner(self) -> Vec<TokenTree> {
-        self.0
+    pub fn into_inner(mut self) -> Vec<TokenTree> {
+        std::mem::take(&mut self.0)
     }
 
     #[inline]
-    pub fn to_vec(self) -> Vec<TokenTree> {
-        self.0
+    pub fn to_vec(mut self) -> Vec<TokenTree> {
+        std::mem::take(&mut self.0)
     }
 }
 
@@ -86,12 +86,35 @@ impl FromIterator<Self> for TokenStream {
     }
 }
 
+// Drops nested groups from a worklist rather than by recursion, so a stream
+// nested any depth, as one converted from another library can be, drops on any
+// stack
+impl Drop for TokenStream {
+    fn drop(&mut self) {
+        let mut pending = Vec::new();
+
+        for token in self.0.drain(..) {
+            if let TokenTree::Group(group) = token {
+                pending.push(group);
+            }
+        }
+
+        while let Some(mut group) = pending.pop() {
+            for token in group.tokens.0.drain(..) {
+                if let TokenTree::Group(group) = token {
+                    pending.push(group);
+                }
+            }
+        }
+    }
+}
+
 impl IntoIterator for TokenStream {
     type Item = TokenTree;
     type IntoIter = std::vec::IntoIter<TokenTree>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+    fn into_iter(mut self) -> Self::IntoIter {
+        std::mem::take(&mut self.0).into_iter()
     }
 }
 
@@ -111,8 +134,8 @@ impl From<&[TokenTree]> for TokenStream {
 
 impl From<TokenStream> for Vec<TokenTree> {
     #[inline]
-    fn from(value: TokenStream) -> Self {
-        value.0
+    fn from(mut value: TokenStream) -> Self {
+        std::mem::take(&mut value.0)
     }
 }
 
