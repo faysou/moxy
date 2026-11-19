@@ -86,7 +86,6 @@ TREE f: trait A { pub fn f(); }
 ACCEPT f: impl A { type T where Self: Sized = u8; }
 ACCEPT f: safe fn f() {}
 ACCEPT f: safe static X: u8 = 1;
-ACCEPT f: struct S { mut a: u8 }
 ACCEPT f: unsafe static X: u8 = 1;
 ACCEPT f: use Self::A;
 ACCEPT f: use a::Self;
