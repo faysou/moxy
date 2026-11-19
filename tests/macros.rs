@@ -127,3 +127,14 @@ fn declarative_macros_of_the_macro_form_parse_as_items() {
     let block: moxy::ast::StmtBlock = moxy::parse!("{ macro m { () => {} } m!() }").unwrap();
     assert!(block.stmts.inner[0].as_item().unwrap().is_decl_macro());
 }
+
+#[test]
+fn macro_rules_without_a_name_is_a_macro_call() {
+    for source in ["macro_rules! {}", "macro_rules! ();", "macro_rules! [];"] {
+        let item: Item = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        assert!(item.is_macro(), "`{source}`");
+    }
+
+    let item: Item = moxy::parse!("macro_rules! m {}").unwrap();
+    assert!(item.is_macro2());
+}
