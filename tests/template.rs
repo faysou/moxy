@@ -304,3 +304,12 @@ fn macro_rules_fragments_keep_their_invisible_groups() {
     let first = tokens.iter().next().unwrap();
     assert!(matches!(first, moxy::token::TokenTree::Ident(ident) if ident.text() == "$crate"));
 }
+
+#[test]
+fn template_literals_the_compiler_accepts_build_at_run_time() {
+    let tokens = moxy::template! { 1.0f16 1f128 10px 340282366920938463463374607431768211456 '\u{00_41}' };
+    assert_eq!(
+        tokens.to_string(),
+        "1.0f16 1f128 10px 340282366920938463463374607431768211456 '\\u{00_41}'"
+    );
+}

@@ -118,3 +118,30 @@ fn float_constructors_write_floats_as_rust_source_does() {
 fn float_constructors_reject_nan() {
     let _ = moxy_token::Lit::f64_unsuffixed(f64::NAN);
 }
+
+#[test]
+fn literals_the_typed_variants_cannot_hold_keep_their_text() {
+    for source in ["1.0f16", "1f128", "2b", "10px", "340282366920938463463374607431768211456"] {
+        let tokens: TokenStream = source.parse().unwrap_or_else(|error| panic!("`{source}`: {error:?}"));
+        let tokens: Vec<_> = tokens.into_iter().collect();
+        assert_eq!(tokens.len(), 1, "`{source}`");
+        let moxy_token::TokenTree::Literal(literal) = &tokens[0] else {
+            panic!("`{source}` is not a literal");
+        };
+        assert!(literal.is_verbatim(), "`{source}`");
+        assert_eq!(literal.repr(), source);
+    }
+
+    for (source, value) in [("'\\u{00_41}'", "A"), ("\"\\u{0_4_1}\"", "A")] {
+        let tokens: TokenStream = source.parse().unwrap_or_else(|error| panic!("`{source}`: {error:?}"));
+        let moxy_token::TokenTree::Literal(literal) = tokens.into_iter().next().unwrap() else {
+            panic!("`{source}` is not a literal");
+        };
+        let decoded = match literal {
+            moxy_token::Lit::Char(c) => c.value().to_string(),
+            moxy_token::Lit::Str(s) => s.value().to_string(),
+            other => panic!("`{source}` lexed as {other:?}"),
+        };
+        assert_eq!(decoded, value);
+    }
+}

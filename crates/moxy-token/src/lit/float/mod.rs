@@ -164,7 +164,7 @@ fn is_float(digits: &str, suffix: &str) -> bool {
             && (digits.contains('.') || digits.contains('e') || digits.contains('E')))
 }
 
-fn scan_number(c: Cursor<'_>) -> Result<Cursor<'_>, LexError> {
+pub(crate) fn scan_number(c: Cursor<'_>) -> Result<Cursor<'_>, LexError> {
     let first = c.first().ok_or(c.error())?;
 
     if !first.is_ascii_digit() {
