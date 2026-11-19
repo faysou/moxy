@@ -244,10 +244,25 @@ impl From<TypeBareFn> for Type {
 impl Type {
     /// Parses a type that `+` does not continue, as after `as` in an
     /// expression, where `a as usize + 1` adds to the cast, and after `&` or
-    /// `*`, where Rust rejects `&A + B` as ambiguous.
+    /// `*`, where Rust rejects `&A + B` and `&dyn A + B` as ambiguous.
     pub(crate) fn parse_without_plus(parser: &Parser) -> Result<Self, ParseError> {
         if Self::peek_bare_bounds(parser.cursor()) {
             return Ok(Self::Path(<_ as Parse>::parse(parser)?));
+        }
+
+        // `impl` and `dyn` take one bound here, as in `&dyn A` and `Fn() -> impl A`
+        if <Token![impl]>::peek(parser.cursor()) {
+            let impl_keyword = <_ as Parse>::parse(parser)?;
+            let mut bounds = List::new();
+            bounds.push_value(<_ as Parse>::parse(parser)?);
+            return Ok(Self::ImplTrait(TypeImplTrait { impl_keyword, bounds }));
+        }
+
+        if <Token![dyn]>::peek(parser.cursor()) {
+            let dyn_token = <_ as Parse>::parse(parser)?;
+            let mut bounds = List::new();
+            bounds.push_value(<_ as Parse>::parse(parser)?);
+            return Ok(Self::TraitObject(TypeTraitObject { dyn_token, bounds }));
         }
 
         <Self as Parse>::parse(parser)
@@ -256,6 +271,10 @@ impl Type {
     pub(crate) fn skip_without_plus(cursor: Cursor<'_>) -> Option<Cursor<'_>> {
         if Self::peek_bare_bounds(cursor) {
             return TypePath::skip(cursor);
+        }
+
+        if <Token![impl]>::peek(cursor) || <Token![dyn]>::peek(cursor) {
+            return TypeBound::skip(cursor.offset(1));
         }
 
         <Self as Parse>::skip(cursor)

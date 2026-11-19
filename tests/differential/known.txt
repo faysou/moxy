@@ -26,8 +26,6 @@ TREE f: fn f() { { #![a] x } }
 TREE f: fn f() { match x { #![a] _ => 1 } }
 TREE f: fn f() { while x { #![a] y; } }
 TREE f: fn f() { for x in y { #![a] z; } }
-TREE t: impl Fn() -> impl A + B
-TREE t: impl Fn() -> dyn A + B
 
 # Different emitted tokens
 TOKENS f: fn f() where {}
@@ -112,7 +110,6 @@ ACCEPT p: #[a] x
 ACCEPT p: [1.., 2]
 ACCEPT p: [1..]
 ACCEPT p: -'a'
-ACCEPT t: &dyn A + B
 ACCEPT t: Fn(A) -> B
 ACCEPT t: Fn(A, B)
 ACCEPT t: Fn()
@@ -142,10 +139,6 @@ ACCEPT f: #[a] #![b] fn f() {}
 ACCEPT f: #[a = ] fn f() {}
 ACCEPT f: fn f() { let x = [#![a] 1]; }
 ACCEPT f: fn f() { 1 .. 2; 1 . 2; 1. 2; 1 .2; }
-ACCEPT t: &'a dyn Fn() -> A + Send
-ACCEPT t: fn() -> dyn A + B
-ACCEPT t: *const dyn A + B
-ACCEPT t: &impl A + B
 ACCEPT t: Fn(A, B) -> C
 ACCEPT t: Fn(A) -> B + C
 ACCEPT t: a::Fn(A)
