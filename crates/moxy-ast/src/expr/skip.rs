@@ -457,6 +457,7 @@ fn range_limits(mut cursor: Cursor<'_>, context: ExprContext) -> Option<(Cursor<
 
     if RangeLimits::peek(cursor) {
         if peek::nested_range(cursor) {
+            let _depth = moxy_token::Depth::enter()?;
             return range(cursor, context);
         }
 
