@@ -107,12 +107,12 @@ impl Format for TokenStream {
 
 // Whether two tokens written without a space between them lex as other
 // tokens, as `pub b` would as `pubb`, `/ /` as a comment, and `b 'a` as no
-// valid tokens
+// valid tokens. The quote of a lifetime lexes only joined to its name.
 fn joins(left: &str, right: &str) -> bool {
-    fn texts(source: &str) -> Option<Vec<String>> {
-        let tokens = source.parse::<TokenStream>().ok()?;
-        Some(tokens.iter().map(ToString::to_string).collect())
-    }
+    let Ok(tokens) = format!("{left}{right}").parse::<TokenStream>() else {
+        return true;
+    };
 
-    texts(&format!("{left}{right}")) != texts(&format!("{left} {right}"))
+    let texts: Vec<String> = tokens.iter().map(ToString::to_string).collect();
+    texts != [left, right]
 }

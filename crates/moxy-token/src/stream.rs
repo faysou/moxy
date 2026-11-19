@@ -239,6 +239,22 @@ impl Scan for TokenStream {
                 continue;
             }
 
+            // A quote that starts no character literal starts a lifetime, as
+            // rustc's lexer reads it; any other quote is an error there
+            if c.first() == Some('\'')
+                && !c
+                    .advance_by(1)
+                    .first()
+                    .is_some_and(|ch| ch == '_' || unicode_ident::is_xid_start(ch))
+            {
+                let message = match c.advance_by(1).first() {
+                    Some('\'') => "empty character literal",
+                    Some('0'..='9') => "lifetimes cannot start with a number",
+                    _ => "unterminated character literal",
+                };
+                return c.error().message(message).into();
+            }
+
             if let Ok((next, punct)) = crate::Punct::scan(c) {
                 tokens.push(TokenTree::Punct(punct));
                 c = next;
