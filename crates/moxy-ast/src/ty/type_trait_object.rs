@@ -18,9 +18,14 @@ impl Parse for TypeTraitObject {
             return true;
         }
 
+        // Parentheses that a `+` follows hold the first bound, as `Type` reads
+        // them
+        if crate::Type::peek_paren_bound_object(cursor) {
+            return true;
+        }
+
         // A function pointer type is no bound, though `fn` reads as a path
-        // segment, and a parenthesized type starts a bare trait object only
-        // after `dyn`
+        // segment, and other parentheses hold a type
         if <Token![fn]>::peek(cursor)
             || <Token![unsafe]>::peek(cursor)
             || <Token![extern]>::peek(cursor)

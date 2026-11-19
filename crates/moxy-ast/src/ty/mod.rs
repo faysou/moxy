@@ -275,6 +275,11 @@ impl Type {
             return Ok(Self::TraitObject(TypeTraitObject { dyn_token, bounds }));
         }
 
+        // Parentheses here hold a type, never the first bound of a trait object
+        if parser.is_delimited(Delim::Paren) {
+            return Self::parse_paren_or_tuple(parser);
+        }
+
         <Self as Parse>::parse(parser)
     }
 
@@ -292,6 +297,11 @@ impl Type {
             } else {
                 Some(cursor)
             };
+        }
+
+        if cursor.is_delimited(Delim::Paren) {
+            let inner = List::<Type, Token![,]>::skip_while_present(cursor.descend(Delim::Paren)?)?;
+            return inner.is_empty().then(|| cursor.offset(1));
         }
 
         <Self as Parse>::skip(cursor)
@@ -325,6 +335,14 @@ impl Type {
             && BoundLifetimes::skip(cursor).is_some_and(|after| {
                 !<Token![fn]>::peek(after) && !<Token![unsafe]>::peek(after) && !<Token![extern]>::peek(after)
             })
+    }
+
+    // A bare trait object whose first bound is in parentheses, as in
+    // `(?Sized) + Copy`, which rustc's parser accepts where `+` may follow.
+    // Parentheses that a `+` follows can hold only a bound there, so the
+    // group is read once, as the bound
+    pub(crate) fn peek_paren_bound_object(cursor: Cursor<'_>) -> bool {
+        cursor.is_delimited(Delim::Paren) && <Token![+]>::peek(cursor.offset(1))
     }
 
     pub(crate) fn peek_lifetime_bound(cursor: Cursor<'_>) -> bool {
@@ -518,7 +536,7 @@ impl Parse for Type {
             Self::parse_slice_or_array
         } else if <Token![impl]>::peek(parser.cursor()) {
             parse_into::<TypeImplTrait, Self>
-        } else if Self::peek_trait_object(parser.cursor()) {
+        } else if Self::peek_trait_object(parser.cursor()) || Self::peek_paren_bound_object(parser.cursor()) {
             // `dyn Trait` and the legacy bare multi-bound trait-object form
             parse_into::<TypeTraitObject, Self>
         } else if <Token![fn]>::peek(parser.cursor())
@@ -588,6 +606,10 @@ impl Parse for Type {
             || BoundLifetimes::peek(cursor)
         {
             return TypeBareFn::skip(cursor);
+        }
+
+        if Self::peek_paren_bound_object(cursor) {
+            return TypeTraitObject::skip(cursor);
         }
 
         // A parenthesized type and a tuple skip alike, each element once, so
