@@ -96,9 +96,6 @@ REJECT f: extern "C" { type T: A; }
 REJECT f: extern "C" { fn f() {} }
 REJECT f: extern r"C" { fn f(); }
 REJECT f: extern r#"C"# fn f() {}
-REJECT f: use ::a;
-REJECT f: use ::{a, b};
-REJECT f: use ::*;
 REJECT f: mod m { #![a] }
 REJECT f: type T<U> = Vec<U> where U: A;
 REJECT f: macro_rules! try { () => {} }
@@ -107,8 +104,6 @@ REJECT f: m! ident {}
 REJECT f: macro m() {}
 REJECT f: pub macro m($a:expr) { $a }
 REJECT f: fn f() { //! inner\n }
-REJECT f: use ::a as b;
-REJECT f: use ::{a::b, c};
 REJECT f: mod m { //! doc\n }
 REJECT f: fn f() { #![a] }
 REJECT f: impl A { #![a] }
@@ -122,12 +117,11 @@ REJECT f: #!/usr/bin/rustc --edition=2021\nfn main() {}
 REJECT f: #!/usr/bin/env run-cargo-script\n//! doc\nfn main() {}
 REJECT f: #!\nfn main() {}
 REJECT f: fn f() { 1f16; 1.0f128; 1f16; 2b; 1px; 1em; 0x1p3; 1_; 1__; }
-REJECT i: use ::serde;
-REJECT i: use ::core as _core;
 REJECT i: mod m { #![allow(x)] }
 REJECT i: fn f() { #![allow(x)] }
 
 # Input syn rejects that moxy accepts
+ACCEPT f: use a::{::b};
 ACCEPT e: a..b = c
 ACCEPT e: &raw const
 ACCEPT e: loop { break 'a: loop {} }
