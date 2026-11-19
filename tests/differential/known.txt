@@ -33,8 +33,6 @@ TREE f: fn f() { { #![a] x } }
 TREE f: fn f() { match x { #![a] _ => 1 } }
 TREE f: fn f() { while x { #![a] y; } }
 TREE f: fn f() { for x in y { #![a] z; } }
-TREE f: fn f() { /** a /* nested */ b */ fn g() {} }
-TREE f: /** multi\n * line\n */ fn f() {}
 TREE t: impl Fn() -> impl A + B
 TREE t: impl Fn() -> dyn A + B
 
@@ -212,8 +210,6 @@ REJECT f: #!/bin/sh -c 'exec rustc "$0"'\nfn main() {}
 REJECT f: #!/usr/bin/rustc --edition=2021\nfn main() {}
 REJECT f: #!/usr/bin/env run-cargo-script\n//! doc\nfn main() {}
 REJECT f: #!\nfn main() {}
-REJECT f: /** a /* nested */ b */ fn g() {}
-REJECT f: /*! a /* nested */ b */ fn g() {}
 REJECT f: fn f() { '\u{00_41}' }
 REJECT f: fn f() { "\u{00_41}" }
 REJECT f: fn f() { 0xdeadbeef; 0xDEAD_BEEF; 0x1E; 0x1e3; 0xe; 0xE1; 0x1f32; 0x1_f64; 0b1e; }
