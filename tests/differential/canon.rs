@@ -683,12 +683,7 @@ fn margs(a: &m::PathArguments) -> String {
                     m::GenericArgument::Lifetime(l) => mt(l),
                     m::GenericArgument::Type(t) => mtype(t),
                     m::GenericArgument::Const(e) => format!("const:{}", mexpr(e)),
-                    m::GenericArgument::AssocType(a) => format!(
-                        "{}{}={}",
-                        mt(&a.ident),
-                        a.generics.as_ref().map(mt).unwrap_or_default(),
-                        mtype(&a.ty)
-                    ),
+                    m::GenericArgument::AssocType(a) => format!("{}{}={}", mt(&a.ident), mt(&a.args), mtype(&a.ty)),
                     m::GenericArgument::AssocConst(a) => format!("{}=const:{}", mt(&a.ident), mexpr(&a.expr)),
                     m::GenericArgument::Constraint(c) => format!("{}:{}", mt(&c.ident), mbounds(&c.bounds)),
                 })

@@ -2473,5 +2473,10 @@ e: A::<B>!()
 f: use a::crate;
 f: use a::crate::b;
 f: use a::{b::crate};
+t: A<Item(T): Clone>
+t: A<Item(T) -> U: Clone>
+t: A<Item::(T): Clone>
+t: A<Item(T) = u8>
+t: A<Item<B>(T): Clone>
 t: impl A + use<'a,>
 e: if let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && let a = b && c {}

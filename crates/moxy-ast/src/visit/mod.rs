@@ -1656,7 +1656,7 @@ define_visit! {
         walk: walk_assoc_type_argument, walk_mut: walk_assoc_type_argument_mut,
         fields {
             ident: skip,
-            generics: opt => visit_angle_arguments / visit_angle_arguments_mut,
+            args => visit_path_arguments / visit_path_arguments_mut,
             eq_punct: skip,
             ty => visit_type / visit_type_mut,
         }
@@ -1666,7 +1666,7 @@ define_visit! {
         walk: walk_assoc_const_argument, walk_mut: walk_assoc_const_argument_mut,
         fields {
             ident: skip,
-            generics: opt => visit_angle_arguments / visit_angle_arguments_mut,
+            args => visit_path_arguments / visit_path_arguments_mut,
             eq_punct: skip,
             expr => visit_expr / visit_expr_mut,
         }
@@ -1676,7 +1676,7 @@ define_visit! {
         walk: walk_constraint_argument, walk_mut: walk_constraint_argument_mut,
         fields {
             ident: skip,
-            generics: opt => visit_angle_arguments / visit_angle_arguments_mut,
+            args => visit_path_arguments / visit_path_arguments_mut,
             colon_punct: skip,
             bounds: punct => visit_type_bound / visit_type_bound_mut,
         }
