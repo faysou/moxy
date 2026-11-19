@@ -1,4 +1,4 @@
-use moxy_token::{Ident, Lit};
+use moxy_token::{DelimSpan, Ident, Lit};
 
 use super::peek;
 use super::*;
@@ -525,7 +525,12 @@ fn primary(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<E
 
 pub(crate) fn paren_or_tuple(parser: &Parser, attrs: Attributes) -> Result<Expr, ParseError> {
     let (span, parser) = parser.parse_group_spanned(Delim::Paren)?;
+    let expr = paren_or_tuple_content(&parser, span, attrs)?;
+    parser.ensure_empty()?;
+    Ok(expr)
+}
 
+fn paren_or_tuple_content(parser: &Parser, span: DelimSpan, attrs: Attributes) -> Result<Expr, ParseError> {
     if parser.is_empty() {
         return Ok(ExprTuple {
             attrs,
@@ -534,17 +539,17 @@ pub(crate) fn paren_or_tuple(parser: &Parser, attrs: Attributes) -> Result<Expr,
         .into());
     }
 
-    let first = <_ as Parse>::parse(&parser)?;
+    let first = <_ as Parse>::parse(parser)?;
 
     if <Token![,]>::peek(parser.cursor()) {
         let mut elems = List::new();
         elems.push_value(first);
 
         while <Token![,]>::peek(parser.cursor()) {
-            elems.push_punct(<_ as Parse>::parse(&parser)?);
+            elems.push_punct(<_ as Parse>::parse(parser)?);
 
             if !parser.is_empty() {
-                elems.push_value(<_ as Parse>::parse(&parser)?);
+                elems.push_value(<_ as Parse>::parse(parser)?);
             }
         }
 
@@ -564,7 +569,12 @@ pub(crate) fn paren_or_tuple(parser: &Parser, attrs: Attributes) -> Result<Expr,
 
 pub(crate) fn array_or_repeat(parser: &Parser, attrs: Attributes) -> Result<Expr, ParseError> {
     let (span, parser) = parser.parse_group_spanned(Delim::Bracket)?;
+    let expr = array_or_repeat_content(&parser, span, attrs)?;
+    parser.ensure_empty()?;
+    Ok(expr)
+}
 
+fn array_or_repeat_content(parser: &Parser, span: DelimSpan, attrs: Attributes) -> Result<Expr, ParseError> {
     if parser.is_empty() {
         return Ok(ExprArray {
             attrs,
@@ -573,7 +583,7 @@ pub(crate) fn array_or_repeat(parser: &Parser, attrs: Attributes) -> Result<Expr
         .into());
     }
 
-    let first = <_ as Parse>::parse(&parser)?;
+    let first = <_ as Parse>::parse(parser)?;
 
     if <Token![;]>::peek(parser.cursor()) {
         return Ok(ExprRepeat {
@@ -582,8 +592,8 @@ pub(crate) fn array_or_repeat(parser: &Parser, attrs: Attributes) -> Result<Expr
                 span,
                 RepeatInner {
                     elem: Box::new(first),
-                    semi: <_ as Parse>::parse(&parser)?,
-                    len: Box::new(<_ as Parse>::parse(&parser)?),
+                    semi: <_ as Parse>::parse(parser)?,
+                    len: Box::new(<_ as Parse>::parse(parser)?),
                 },
             ),
         }
@@ -594,10 +604,10 @@ pub(crate) fn array_or_repeat(parser: &Parser, attrs: Attributes) -> Result<Expr
     elems.push_value(first);
 
     while <Token![,]>::peek(parser.cursor()) {
-        elems.push_punct(<_ as Parse>::parse(&parser)?);
+        elems.push_punct(<_ as Parse>::parse(parser)?);
 
         if !parser.is_empty() {
-            elems.push_value(<_ as Parse>::parse(&parser)?);
+            elems.push_value(<_ as Parse>::parse(parser)?);
         }
     }
 
