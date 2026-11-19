@@ -100,7 +100,14 @@ impl Format for Receiver {
             }
         }
 
-        f.text("self")
+        f.text("self")?;
+
+        if let Some((_, ty)) = &self.ty {
+            f.text(": ")?;
+            ty.format(f)?;
+        }
+
+        Ok(())
     }
 }
 
