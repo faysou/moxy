@@ -697,8 +697,25 @@ fn any_unsuffixed_integer_after_a_field_dot_is_a_tuple_index() {
         assert_eq!(expression.to_token_stream().to_string(), emitted);
     }
 
-    for source in ["x.0u8", "x.0."] {
+    // A number with an exponent names a member too, as rustc's parser reads it
+    for (source, emitted) in [("a.1e5", "a . 1e5"), ("a.0.1e1", "a . 0 . 1e1"), ("a.1E2", "a . 1E2")] {
+        let expression: Expr = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        assert_eq!(expression.to_token_stream().to_string(), emitted);
+    }
+
+    for source in ["x.0u8", "x.0.", "x.1e5f32", "x.1E+2", "x.1.5e-3"] {
         assert!(moxy::parse!(source as Expr).is_err(), "`{source}`");
+    }
+
+    // A field name in a struct literal or pattern is an integer only
+    assert_eq!(
+        moxy::parse!("S { 0x1: a }" as Expr).unwrap().to_token_stream().to_string(),
+        "S {0x1 : a}"
+    );
+
+    for source in ["S { 1e5: a }", "S { 1E2: a }"] {
+        assert!(moxy::parse!(source as Expr).is_err(), "`{source}`");
+        assert!(moxy::parse!(source as moxy::ast::Pattern).is_err(), "`{source}`");
     }
 }
 
