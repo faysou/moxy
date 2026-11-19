@@ -164,6 +164,7 @@ fn ends_block(expr: &Expr) -> bool {
             | Expr::ForLoop(_)
             | Expr::Unsafe(_)
             | Expr::Const(_)
+            | Expr::TryBlock(_)
     )
 }
 

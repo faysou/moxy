@@ -71,6 +71,7 @@ pub(crate) fn block_like(cursor: Cursor<'_>) -> bool {
         || <Token![for]>::peek(cursor)
         || (<Token![unsafe]>::peek(cursor) && cursor.offset(1).is_delimited(Delim::Brace))
         || (<Token![const]>::peek(cursor) && cursor.offset(1).is_delimited(Delim::Brace))
+        || (<Token![try]>::peek(cursor) && cursor.offset(1).is_delimited(Delim::Brace))
 }
 
 // Whether a block-like expression continues as a method call, field access,
