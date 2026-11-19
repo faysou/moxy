@@ -223,7 +223,7 @@ impl Scan for TokenStream {
                     "true" | "false" => TokenTree::Literal(crate::LitBool::new(text == "true", span).into()),
                     _ => match crate::Keyword::from_str(text, span) {
                         Some(keyword) => TokenTree::Keyword(keyword),
-                        None => TokenTree::Ident(crate::Ident::new(text).with_span(span)),
+                        None => TokenTree::Ident(crate::Ident::scanned(text, span)),
                     },
                 });
                 c = next;
