@@ -97,3 +97,16 @@ fn impl_types_and_functions_may_lack_a_type_or_body_as_rustc_parses_them() {
         assert!(moxy::parse!(formatted as Item).is_ok(), "`{source}`");
     }
 }
+
+#[test]
+fn a_colon_without_bounds_formats() {
+    for (source, formatted) in [
+        ("type T:;", "type T:;"),
+        ("trait A { type T:; }", "trait A {\n\ttype T:;\n}"),
+        ("extern \"C\" { type T:; }", "extern \"C\" {\n\ttype T:;\n}"),
+        ("type T: A = u8;", "type T: A = u8;"),
+    ] {
+        let item: Item = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        assert_eq!(moxy::fmt!(&item).unwrap(), formatted, "`{source}`");
+    }
+}
