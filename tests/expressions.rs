@@ -923,3 +923,70 @@ fn visitors_see_each_chain_once_and_each_step_through_its_own_callback() {
     count.visit_item(&item);
     assert_eq!(count.0, [0, 0, 0, 0, 0, 2]);
 }
+
+#[test]
+fn chains_split_off_their_last_step_as_expressions() {
+    use moxy::ast::ExprPostfix;
+
+    // `a.b()` rewritten as `b(a)`
+    let Expr::Postfix(chain) = moxy::parse!("a.b()" as Expr).unwrap() else {
+        panic!()
+    };
+    let (_, receiver, last) = chain.split_last().unwrap();
+    let method = &last.as_method_call().unwrap().method;
+    let call: Expr = moxy::parse!((format!("{}({})", method, receiver.to_token_stream()))).unwrap();
+    assert_eq!(call.to_token_stream().to_string(), "b (a)");
+
+    // The attributes of a chain come back apart; no operand takes them
+    let Expr::Postfix(chain) = moxy::parse!("#[a] x.f().g()" as Expr).unwrap() else {
+        panic!()
+    };
+    let (base, before, final_step) = chain.split_last_ref().unwrap();
+    assert_eq!(
+        [
+            base.to_token_stream().to_string(),
+            before.len().to_string(),
+            final_step.to_token_stream().to_string()
+        ],
+        ["x", "1", ". g ()"]
+    );
+    let (attrs, receiver, _) = chain.split_last().unwrap();
+    assert_eq!(
+        [attrs.len().to_string(), receiver.to_token_stream().to_string()],
+        ["1", "x . f ()"]
+    );
+
+    // An outer attribute before a sum belongs to its first operand
+    let Expr::BinaryChain(chain) = moxy::parse!("#[a] x + y" as Expr).unwrap() else {
+        panic!()
+    };
+    let (attrs, left, _, right) = chain.split_last().unwrap();
+    assert_eq!(
+        [
+            attrs.len().to_string(),
+            left.to_token_stream().to_string(),
+            right.to_token_stream().to_string()
+        ],
+        ["0", "# [a] x", "y"]
+    );
+
+    let Expr::BinaryChain(chain) = moxy::parse!("x * y * z" as Expr).unwrap() else {
+        panic!()
+    };
+    assert!(chain.as_pair().is_none());
+    let (_, left, _, _) = chain.split_last().unwrap();
+    let (x, _, y) = left.as_binary_chain().unwrap().as_pair().unwrap();
+    assert_eq!([x.to_token_stream().to_string(), y.to_token_stream().to_string()], ["x", "y"]);
+
+    // A chain without a step, which only direct construction makes, splits to
+    // nothing instead of panicking
+    let Expr::Postfix(mut empty) = moxy::parse!("x?" as Expr).unwrap() else {
+        panic!()
+    };
+    empty.ops.clear();
+    assert!(empty.split_last_ref().is_none());
+    assert!(empty.split_last().is_none());
+
+    let built = ExprPostfix::new(moxy::parse!("y" as Expr).unwrap(), last.clone());
+    assert_eq!(built.to_token_stream().to_string(), "y . b ()");
+}
