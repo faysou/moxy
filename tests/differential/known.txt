@@ -42,12 +42,9 @@ TOKENS f: trait A: {}
 TOKENS f: enum E { pub A }
 
 # Valid Rust that moxy rejects
-REJECT e: a.0.1
 REJECT e: match a { box x => 1 }
 REJECT e: match a { const { 1 } => 1 }
 REJECT e: 1e
-REJECT e: a.1.0
-REJECT e: a.1.0.2
 REJECT e: a.0x1
 REJECT e: a.0_0
 REJECT e: "a"suffix
@@ -57,12 +54,9 @@ REJECT e: r#"a"#suffix
 REJECT e: 'a'b
 REJECT e: try!(a)
 REJECT e: become f()
-REJECT f: impl ExitStatusError { fn code() -> Option<u8> { NonZeroI32::new(self.0.0) } }
 REJECT f: type Symbols<'false> = Table<Symbol<'false>>;
 REJECT f: type B = unsafe extern "efiapi" fn(_: Handle, _: ...) -> Status;
 REJECT f: type B = fn(_: ...) -> Status;
-REJECT f: fn f() { self.0.0 }
-REJECT f: fn f() { NonZeroI32::new(self.0.0) }
 REJECT f: impl<T> X<T> { type Item; #[inline] fn next() -> Option<T> {} fn advance_by(self, n: usize) -> Result<(), NonZero<usize>> { rem = if len < n {} else {} } }
 REJECT b: { try!(x) }
 REJECT p: S { box a }
