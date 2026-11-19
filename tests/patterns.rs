@@ -95,3 +95,28 @@ fn formatting_keeps_the_qualifier_of_qualified_paths() {
         assert_eq!(moxy::fmt!(&expression).unwrap(), formatted);
     }
 }
+
+#[test]
+fn pattern_paths_read_fn_named_segments_as_names() {
+    for source in [
+        "Item::Fn(ItemFn { attrs, .. })",
+        "Kind::FnMut",
+        "Kind::FnOnce { a }",
+        "Option::<u8>::Some(x)",
+    ] {
+        let pattern: Pattern = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        let lexed: moxy::token::TokenStream = source.parse().unwrap();
+        assert_eq!(pattern.to_token_stream().to_string(), lexed.to_string());
+    }
+
+    let pattern: Pattern = moxy::parse!("Item::Fn(ItemFn { attrs, .. })").unwrap();
+    let Pattern::TupleStruct(tuple_struct) = &pattern else {
+        panic!("expected a tuple-struct pattern");
+    };
+    assert_eq!(tuple_struct.path.last().unwrap().ident.text(), "Fn");
+    assert!(matches!(
+        tuple_struct.path.last().unwrap().args,
+        moxy::ast::PathArguments::None
+    ));
+    assert!(tuple_struct.elems.inner.first().unwrap().is_struct());
+}
