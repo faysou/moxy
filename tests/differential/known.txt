@@ -14,9 +14,6 @@ TREE e: a.. ..b
 TREE e: S { a: 1, .. }
 TREE b: { #[a] 1..2; }
 TREE b: { {}; -1 }
-TREE b: { {}.b }
-TREE b: { {}.b(); }
-TREE b: { {}? }
 TREE p: 1...2
 TREE p: (..)
 TREE p: &1..=2
