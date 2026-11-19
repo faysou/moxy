@@ -1097,6 +1097,7 @@ define_visit! {
             not_punct: skip,
             ident: skip,
             body: skip,
+            semi: skip,
         }
     }
     struct ItemForeignMod {
