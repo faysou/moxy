@@ -100,3 +100,19 @@ fn never_infer_and_parenthesized_types_preserve_variants() {
         assert_eq!(moxy::fmt!(&ty).unwrap(), expected);
     }
 }
+
+#[test]
+fn const_generic_arguments_end_at_the_closing_angle_bracket() {
+    for (source, expected) in [
+        ("Foo<3>", "Foo<3>"),
+        ("Foo<-1>", "Foo<-1>"),
+        ("Foo<{ N + 1 }>", "Foo<{\n\tN + 1\n}>"),
+        ("Foo<'a, T, 3>", "Foo<'a, T, 3>"),
+        ("Foo<3, u8>", "Foo<3, u8>"),
+        ("Foo<N = 3>", "Foo<N = 3>"),
+        ("Vec<Foo<3>>", "Vec<Foo<3>>"),
+    ] {
+        let ty: Type = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        assert_eq!(moxy::fmt!(&ty).unwrap(), expected);
+    }
+}

@@ -78,7 +78,7 @@ impl Parse for GenericArgument {
             || token.is_punct_not();
 
         if is_const {
-            return Ok(Self::Const(<_ as Parse>::parse(parser)?));
+            return Ok(Self::Const(expr::parse::unary(parser, Default::default())?));
         }
 
         if token.is_ident() {
@@ -109,7 +109,7 @@ impl Parse for GenericArgument {
                 };
 
                 if is_const {
-                    let expr = <_ as Parse>::parse(parser)?;
+                    let expr = expr::parse::unary(parser, Default::default())?;
 
                     return Ok(AssocConstArgument {
                         ident,
@@ -164,7 +164,7 @@ impl Parse for GenericArgument {
         };
 
         if is_const {
-            return Expr::skip(cursor);
+            return expr::skip::pattern_bound(cursor);
         }
 
         if Ident::peek(cursor) {
@@ -193,7 +193,11 @@ impl Parse for GenericArgument {
                     _ => false,
                 };
 
-                return if is_const { Expr::skip(cursor) } else { Type::skip(cursor) };
+                return if is_const {
+                    expr::skip::pattern_bound(cursor)
+                } else {
+                    Type::skip(cursor)
+                };
             }
 
             cursor = Path::skip_rest(cursor)?;
