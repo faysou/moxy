@@ -450,3 +450,13 @@ fn else_branches_end_at_their_block() {
     let error = moxy::parse!("if a { 1 } else 2" as Expr).err().unwrap();
     assert_eq!(error.message(), "expected `{` or `if` after `else`");
 }
+
+#[test]
+fn a_cast_type_ends_before_a_binary_plus() {
+    let expression: Expr = moxy::parse!("a as usize + 1").unwrap();
+    assert!(expression.is_binary());
+    assert_eq!(expression.to_token_stream().to_string(), "a as usize + 1");
+
+    let expression: Expr = moxy::parse!("x as Box<dyn A + Send>").unwrap();
+    assert!(expression.is_cast());
+}
