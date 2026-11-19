@@ -110,6 +110,11 @@ impl Parse for GenericArgument {
 
         if Ident::peek(cursor) {
             cursor = Ident::skip(cursor)?;
+
+            if ParenArguments::peek(cursor) {
+                return Path::skip_rest(ParenArguments::skip(cursor)?);
+            }
+
             cursor = Option::<AngleArguments>::skip(cursor)?;
 
             if peek_lone_colon(cursor) {
@@ -161,6 +166,14 @@ impl GenericArgument {
     // out of the frame of every nested argument.
     fn parse_named(parser: &Parser) -> Result<Self, ParseError> {
         let ident = <_ as Parse>::parse(parser)?;
+
+        // A bare trait object with parenthesized arguments, as in `Box<Fn(u8)>`
+        if ParenArguments::peek(parser.cursor()) {
+            let args = PathArguments::Parenthesized(<_ as Parse>::parse(parser)?);
+            let path = Path::parse_rest(parser, PathSegment { ident, args })?;
+            return Ok(Self::Type(Type::Path(TypePath { qself: None, path })));
+        }
+
         let generics: Option<AngleArguments> = <_ as Parse>::parse(parser)?;
 
         if peek_lone_colon(parser.cursor()) {

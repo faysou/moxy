@@ -248,7 +248,7 @@ fn primary(mut cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
     }
 
     cursor = if qualified {
-        ty::TypePath::skip(cursor)?
+        ty::TypePath::skip_expr(cursor)?
     } else {
         Path::skip_expr(cursor)?
     };

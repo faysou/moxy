@@ -691,7 +691,7 @@ fn yield_expr(parser: &Parser, attrs: Attributes, context: ExprContext) -> Resul
 
 fn path_macro_or_struct(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<Box<Expr>, ParseError> {
     let (qself, path) = if <Token![<]>::peek(parser.cursor()) {
-        let (qself, path) = QSelf::parse_qualified(parser)?;
+        let (qself, path) = QSelf::parse_qualified_expr(parser)?;
         (Some(qself), path)
     } else {
         (None, Path::parse_expr(parser)?)

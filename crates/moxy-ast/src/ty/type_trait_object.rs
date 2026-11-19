@@ -18,6 +18,11 @@ impl Parse for TypeTraitObject {
             return true;
         }
 
+        // A function pointer type is no bound, though `fn` reads as a path segment
+        if <Token![fn]>::peek(cursor) || <Token![unsafe]>::peek(cursor) || <Token![extern]>::peek(cursor) {
+            return false;
+        }
+
         TypeBound::skip(cursor).is_some_and(|cursor| <Token![+]>::peek(cursor))
     }
 
