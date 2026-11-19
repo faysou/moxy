@@ -178,6 +178,10 @@ fn invalid_tokens_are_lex_errors() {
         ("b\"é\"", "non-ASCII character in byte string literal"),
         ("r#self", "`self` cannot be a raw identifier"),
         ("r#crate", "`crate` cannot be a raw identifier"),
+        ("b'\\u{1}'", "unicode escape in byte literal"),
+        ("b\"\\u{1}\"", "unicode escape in byte string literal"),
+        ("c\"\\0\"", "nul character in C string literal"),
+        ("c\"a\\x00\"", "nul character in C string literal"),
     ] {
         let error = source
             .parse::<TokenStream>()

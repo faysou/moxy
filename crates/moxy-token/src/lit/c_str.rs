@@ -87,6 +87,8 @@ impl Scan for LitCStr {
         let span = cursor.span_to(&end);
 
         match repr.strip_prefix('c').and_then(decode_string_body) {
+            // A C string ends at its only nul character, which it adds itself
+            Some(value) if value.contains('\0') => cursor.error().message("nul character in C string literal").into(),
             Some(value) => Ok((end, Self::from_parts(value.into_bytes(), repr, span))),
             None => cursor.error().into(),
         }

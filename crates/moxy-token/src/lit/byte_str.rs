@@ -176,27 +176,7 @@ fn escape(c: Cursor<'_>) -> Result<Cursor<'_>, LexError> {
             let c = hex_digit(c)?;
             hex_digit(c)
         }
-        Some('u') => {
-            let c = c.advance();
-
-            if !c.starts_with("{") {
-                return c.error().into();
-            }
-
-            let mut c = c.advance();
-            let mut count = 0;
-
-            loop {
-                match c.first() {
-                    Some('}') if count > 0 => return Ok(c.advance()),
-                    Some(ch) if ch.is_ascii_hexdigit() && count < 6 => {
-                        count += 1;
-                        c = c.advance();
-                    }
-                    _ => return c.error().into(),
-                }
-            }
-        }
+        Some('u') => c.error().message("unicode escape in byte string literal").into(),
         _ => c.error().into(),
     }
 }

@@ -89,8 +89,6 @@ ACCEPT e: a..b = c
 ACCEPT e: static || 1
 ACCEPT e: static move || 1
 ACCEPT e: #![a] x
-ACCEPT e: b'\u{1}'
-ACCEPT e: c"\0"
 ACCEPT e: <a::Fn(A) -> B>::c
 ACCEPT e: abstract
 ACCEPT e: a..b = c..d
