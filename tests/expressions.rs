@@ -1,4 +1,4 @@
-use moxy::ast::Expr;
+use moxy::ast::{Expr, Type};
 use moxy::token::{Spanner, ToTokenStream};
 
 #[test]
@@ -521,4 +521,18 @@ fn comparisons_do_not_chain() {
         let expression: Expr = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
         assert!(expression.is_binary());
     }
+}
+
+#[test]
+fn a_cast_type_ends_before_a_comparison() {
+    for source in ["a as u8 != b", "x.len() as u64 <= max", "a as i64 >= b", "a as &u8 + 1"] {
+        let expression: Expr = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        let lexed: moxy::token::TokenStream = source.parse().unwrap();
+        assert!(expression.is_binary(), "`{source}`");
+        assert!(expression.as_binary().unwrap().left.is_cast(), "`{source}`");
+        assert_eq!(expression.to_token_stream().to_string(), lexed.to_string());
+    }
+
+    let ty: Type = moxy::parse!("Vec<<T as A>::B>").unwrap();
+    assert_eq!(ty.to_token_stream().to_string(), "Vec << T as A > :: B >");
 }
