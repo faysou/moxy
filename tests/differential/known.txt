@@ -113,12 +113,7 @@ ACCEPT e: 1 /* unterminated
 ACCEPT e: a..=
 ACCEPT e: ..=
 ACCEPT e: <a::Fn(A) -> B>::c
-ACCEPT e: await
-ACCEPT e: dyn
-ACCEPT e: box
-ACCEPT e: static
 ACCEPT e: abstract
-ACCEPT e: typeof
 ACCEPT e: a..b = c..d
 ACCEPT e: a .. = b
 ACCEPT b: { let x = S {} else { return }; }
@@ -131,7 +126,6 @@ ACCEPT b: { let x = static || 1; }
 ACCEPT p: #[a] x
 ACCEPT p: [1.., 2]
 ACCEPT p: [1..]
-ACCEPT p: mut (a, b)
 ACCEPT p: -'a'
 ACCEPT t: &dyn A + B
 ACCEPT t: Fn(A) -> B
