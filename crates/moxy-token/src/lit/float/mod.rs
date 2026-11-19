@@ -118,6 +118,7 @@ impl From<LitFloat> for String {
     }
 }
 
+// Each constructor panics if the value is not finite; see `LitF64::new`
 impl Lit {
     pub fn f32_suffixed(value: f32) -> Self {
         LitF32::new(value, true, Span::default()).into()

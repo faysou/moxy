@@ -98,3 +98,23 @@ fn a_trailing_dot_ends_a_float_literal() {
     let token = stream.into_iter().next().unwrap();
     assert!(token.as_literal().unwrap().is_float());
 }
+
+#[test]
+fn float_constructors_write_floats_as_rust_source_does() {
+    for (literal, text) in [
+        (moxy_token::Lit::f64_unsuffixed(1.0), "1.0"),
+        (moxy_token::Lit::f64_unsuffixed(-0.0), "-0.0"),
+        (moxy_token::Lit::f64_unsuffixed(2.5), "2.5"),
+        (moxy_token::Lit::f32_unsuffixed(3.0), "3.0"),
+        (moxy_token::Lit::f64_suffixed(1.0), "1f64"),
+        (moxy_token::Lit::f32_suffixed(0.5), "0.5f32"),
+    ] {
+        assert_eq!(literal.to_string(), text);
+    }
+}
+
+#[test]
+#[should_panic(expected = "a float literal must be finite")]
+fn float_constructors_reject_nan() {
+    let _ = moxy_token::Lit::f64_unsuffixed(f64::NAN);
+}
