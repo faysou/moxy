@@ -38,7 +38,7 @@ impl Parse for Receiver {
 
         let mutability = <_ as Parse>::parse(parser)?;
         let self_keyword = <_ as Parse>::parse(parser)?;
-        let ty = if reference.is_none() && Self::peek_colon(parser.cursor()) {
+        let ty = if reference.is_none() && peek_lone_colon(parser.cursor()) {
             Some((<_ as Parse>::parse(parser)?, <_ as Parse>::parse(parser)?))
         } else {
             None
@@ -66,18 +66,12 @@ impl Parse for Receiver {
         cursor = Option::<Token![mut]>::skip(cursor)?;
         cursor = <Token![self]>::skip(cursor)?;
 
-        if !reference && Self::peek_colon(cursor) {
+        if !reference && peek_lone_colon(cursor) {
             cursor = <Token![:]>::skip(cursor)?;
             cursor = Type::skip(cursor)?;
         }
 
         Some(cursor)
-    }
-}
-
-impl Receiver {
-    fn peek_colon(cursor: Cursor<'_>) -> bool {
-        <Token![:]>::peek(cursor) && !<Token![::]>::peek(cursor)
     }
 }
 

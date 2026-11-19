@@ -85,7 +85,7 @@ impl Parse for GenericArgument {
             let ident = <_ as Parse>::parse(parser)?;
             let generics: Option<AngleArguments> = <_ as Parse>::parse(parser)?;
 
-            if <Token![:]>::peek(parser.cursor()) && !<Token![::]>::peek(parser.cursor()) {
+            if peek_lone_colon(parser.cursor()) {
                 let colon_punct = <_ as Parse>::parse(parser)?;
                 let bounds = List::parse_nonempty(parser)?;
 
@@ -171,7 +171,7 @@ impl Parse for GenericArgument {
             cursor = Ident::skip(cursor)?;
             cursor = Option::<AngleArguments>::skip(cursor)?;
 
-            if <Token![:]>::peek(cursor) && !<Token![::]>::peek(cursor) {
+            if peek_lone_colon(cursor) {
                 cursor = <Token![:]>::skip(cursor)?;
                 cursor = TypeBound::skip(cursor)?;
 
