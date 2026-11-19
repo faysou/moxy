@@ -488,3 +488,12 @@ fn qualified_paths_keep_their_qualifier_in_expressions_and_patterns() {
         assert_eq!(expression.to_token_stream().to_string(), tokens);
     }
 }
+
+#[test]
+fn raw_borrows_keep_the_raw_keyword() {
+    for (source, tokens) in [("&raw const x", "& raw const x"), ("&raw mut x", "& raw mut x")] {
+        let expression: Expr = moxy::parse!(source).unwrap();
+        assert!(expression.is_raw_addr());
+        assert_eq!(expression.to_token_stream().to_string(), tokens);
+    }
+}
