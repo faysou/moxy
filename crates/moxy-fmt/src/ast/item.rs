@@ -378,11 +378,13 @@ impl Format for ItemStruct {
         self.ident.format(f)?;
         self.generics.format(f)?;
 
-        if let Some(where_clause) = &self.generics.where_clause {
-            where_clause.format(f)?;
+        if self.fields.is_unnamed() {
+            self.fields.format(f)?;
+            self.generics.where_clause.format(f)?;
+        } else {
+            self.generics.where_clause.format(f)?;
+            self.fields.format(f)?;
         }
-
-        self.fields.format(f)?;
 
         if matches!(self.fields, moxy_ast::Fields::Unnamed(_) | moxy_ast::Fields::Unit) {
             f.text(";")?;
@@ -497,6 +499,7 @@ impl Format for ItemTrait {
             self.supertraits.format(f)?;
         }
 
+        self.generics.where_clause.format(f)?;
         f.text(" {")?;
         f.indent(|f| {
             for item in &self.items.inner {
@@ -558,6 +561,7 @@ impl Format for ItemImpl {
         }
 
         self.self_ty.format(f)?;
+        self.generics.where_clause.format(f)?;
 
         f.text(" {")?;
         f.indent(|f| {
@@ -806,6 +810,7 @@ impl Format for ImplItemType {
         self.generics.format(f)?;
         f.text(" = ")?;
         self.ty.format(f)?;
+        self.generics.where_clause.format(f)?;
         f.text(";")
     }
 }
@@ -888,6 +893,7 @@ impl Format for TraitItemType {
             default.format(f)?;
         }
 
+        self.generics.where_clause.format(f)?;
         f.text(";")
     }
 }
