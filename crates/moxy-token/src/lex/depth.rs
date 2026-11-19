@@ -8,9 +8,9 @@ use std::cell::Cell;
 /// `proc_macro2` stream counts groups the same way:
 /// [`TryIntoTokenStream::try_into_token_stream`](crate::TryIntoTokenStream)
 /// returns that error, and `From` panics with it. Real source and macro
-/// bodies do not nest groups that deep. Token trees built by hand are not
-/// limited, and cloning, comparing, printing, and converting one back recurse
-/// once per group.
+/// bodies do not nest groups that deep. Token trees and syntax trees built by
+/// hand are not limited: cloning, comparing, printing, emitting, and dropping
+/// one recurse once per level.
 ///
 /// Parsing reports its own limit as "nesting is deeper than 144 levels". It
 /// counts each nested operand, group, block, pattern, type, generic argument,
@@ -19,11 +19,15 @@ use std::cell::Cell;
 /// more, as in `a || b && c`. It charges the forms whose parse takes more
 /// stack more levels:
 ///
-/// - Two levels: a struct literal or struct pattern, a closure with a return
-///   type, a function pointer type, parenthesized path arguments as in
-///   `Fn() -> T`, an array type, a qualified self type as in `<T as A>::B`,
-///   an item inside a block, a module's body, a `let` initializer, and a
-///   `const` block in a pattern.
+/// - Two levels: a call, method call, or index together with its arguments,
+///   as in `f(f(x))`, whose argument parse frames are large; a postfix chain
+///   or cast whose base is a group, as in `(x).a()`; the final `else` block
+///   of an `if`; a binding's subpattern, as in `a @ b @ c`; the elements of a
+///   tuple struct pattern; an `impl` type; a bound in parentheses; a struct
+///   literal or struct pattern, a closure with a return type, a function
+///   pointer type, parenthesized path arguments as in `Fn() -> T`, an array
+///   type, a qualified self type as in `<T as A>::B`, an item inside a block,
+///   a module's body, a `let` initializer, and a `const` block in a pattern.
 /// - Three levels: an associated type or constant argument (`A<B = T>`), an
 ///   associated type bound (`A<B: C>`), and a member of an impl, trait, or
 ///   extern block.
@@ -31,16 +35,18 @@ use std::cell::Cell;
 /// The steps of one chain of binary operators, postfix operations, casts,
 /// `else if` branches, or use path segments are held flat, so a chain counts
 /// as one level however long it is. A chain of postfix operations or casts,
-/// and the operations that continue a block-like statement as in
-/// `{ x }.a() + 1`, count that level above everything they wrap, as walking
-/// the tree nests through them.
+/// and each of those that continue a block-like statement as in
+/// `{ x }.a() as T`, counts a level above the base it wraps, as walking the
+/// tree nests through it. Skipping takes the same levels as parsing.
 ///
 /// The count is the same on every build and platform, so a source parses or
 /// fails alike everywhere. It is sized for the 2 MiB stack of a spawned thread
 /// or a test in a debug build: input at the limit of each kind parses and runs
-/// every traversal in at most about 1.5 MiB there on macOS arm64. A release
-/// build takes less. A caller on a smaller stack, such as a
-/// 1 MiB main thread on Windows, should parse on a thread with at least 2 MiB.
+/// every traversal in at most about 1.5 MiB there, on macOS arm64 and Linux
+/// x86_64, which the depth tests check on a 1.5 MiB thread. A release build
+/// takes less, and a coverage build up to about 1.75 MiB. A caller on
+/// a smaller stack, such as a 1 MiB main thread on Windows, should parse on a
+/// thread with at least 2 MiB.
 /// rustc grows its stack to accept any depth; syn parses 256 nested
 /// parentheses on an 8 MiB stack and overflows a 2 MiB stack at that depth in
 /// a debug build.

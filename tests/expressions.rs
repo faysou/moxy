@@ -1171,7 +1171,7 @@ mod length_check {
 
 #[cfg(feature = "serde")]
 #[test]
-fn every_serialized_sequence_holds_the_length_it_announces() {
+fn every_tree_of_the_parse_fixtures_serializes_with_announced_lengths() {
     use serde::Serialize;
 
     // A binary chain announced no length for its operands and operators
@@ -1184,6 +1184,24 @@ fn every_serialized_sequence_holds_the_length_it_announces() {
         );
     }
 
-    let file: moxy::ast::File = moxy::parse!("fn f<T: A + B>(a: u8, b: u8) -> u8 { a + b - 1 }").unwrap();
-    assert_eq!(file.serialize(length_check::Check).map_err(|error| error.to_string()), Ok(()));
+    // Every item fixture is a file; the expression and type fixtures that are
+    // files are checked too
+    for (dir, all_files) in [
+        ("fixtures/parse/item", true),
+        ("fixtures/parse/expr", false),
+        ("fixtures/parse/type", false),
+    ] {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            let source = std::fs::read_to_string(&path).unwrap();
+
+            match moxy::parse!(source as moxy::ast::File) {
+                Ok(file) => {
+                    let serialized = file.serialize(length_check::Check).map_err(|error| error.to_string());
+                    assert_eq!(serialized, Ok(()), "{}", path.display());
+                }
+                Err(error) => assert!(!all_files, "{}: {error}", path.display()),
+            }
+        }
+    }
 }

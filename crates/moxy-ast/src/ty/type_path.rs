@@ -26,7 +26,7 @@ impl TypePath {
         }
 
         // The parser's extra level for a qualifier, held to its `>`
-        let weight = moxy_token::Depth::enter()?;
+        let weight = moxy_token::__private::Depth::enter()?;
         let mut cursor = <Token![<]>::skip(cursor)?;
         cursor = Type::skip(cursor)?;
 

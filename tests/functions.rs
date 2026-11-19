@@ -189,6 +189,12 @@ fn a_variadic_takes_a_trailing_comma() {
 }
 
 #[test]
+fn the_formatter_drops_a_variadic_trailing_comma() {
+    let item: moxy::ast::Item = moxy::parse!("extern \"C\" { fn a(_: *mut u8, ...,); }").unwrap();
+    assert_eq!(moxy::fmt!(&item).unwrap(), "extern \"C\" {\n\tfn a(_: *mut u8, ...);\n}");
+}
+
+#[test]
 fn a_variadic_pattern_may_hold_generic_arguments() {
     // A `,` between generic arguments, which are no group, does not end the
     // parameter

@@ -156,6 +156,9 @@ impl ToTokens for proc_macro::Literal {
 
 // --- Group ---
 
+/// Panics when the group's tokens nest deeper than [`crate::MAX_DEPTH`];
+/// [`TryIntoTokenStream::try_into_token_stream`] on a stream that holds the
+/// group returns that as an error.
 impl From<proc_macro::Group> for Group {
     #[inline]
     fn from(value: proc_macro::Group) -> Self {
@@ -182,6 +185,9 @@ impl From<Group> for proc_macro::Group {
     }
 }
 
+/// Panics when the group's tokens nest deeper than [`crate::MAX_DEPTH`];
+/// [`TryIntoTokenStream::try_into_token_stream`] on a stream that holds the
+/// group returns that as an error.
 impl ToTokens for proc_macro::Group {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let token = Group::from(self.clone()).into_token_tree();
@@ -191,6 +197,9 @@ impl ToTokens for proc_macro::Group {
 
 // --- TokenStream ---
 
+/// Panics when a group's tokens nest deeper than [`crate::MAX_DEPTH`];
+/// [`TryIntoTokenStream::try_into_token_stream`] on a stream that holds the
+/// tree returns that as an error.
 impl ToTokens<TokenStream> for proc_macro::TokenTree {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
@@ -214,6 +223,8 @@ impl ToTokens<TokenStream> for proc_macro::TokenTree {
     }
 }
 
+/// Panics when the stream's groups nest deeper than [`crate::MAX_DEPTH`];
+/// [`TryIntoTokenStream::try_into_token_stream`] returns that as an error.
 impl ToTokens<TokenStream> for proc_macro::TokenStream {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         for token in Vec::<TokenTree>::from(super::expect_converted(convert(self.clone()))) {
