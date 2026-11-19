@@ -24,7 +24,7 @@ define_visit! {
             Unary(visit_expr_unary / visit_expr_unary_mut),
             Cast(visit_expr_cast / visit_expr_cast_mut),
             Try(visit_expr_try / visit_expr_try_mut),
-            Binary(visit_expr_binary / visit_expr_binary_mut),
+            BinaryChain(visit_expr_binary_chain / visit_expr_binary_chain_mut),
             Assign(visit_expr_assign / visit_expr_assign_mut),
             Range(visit_expr_range / visit_expr_range_mut),
             Call(visit_expr_call / visit_expr_call_mut),
@@ -101,14 +101,12 @@ define_visit! {
             question_punct: skip,
         }
     }
-    struct ExprBinary {
-        visit: visit_expr_binary, visit_mut: visit_expr_binary_mut,
-        walk: walk_expr_binary, walk_mut: walk_expr_binary_mut,
+    struct ExprBinaryChain {
+        visit: visit_expr_binary_chain, visit_mut: visit_expr_binary_chain_mut,
+        walk: walk_expr_binary_chain, walk_mut: walk_expr_binary_chain_mut,
         fields {
             attrs => visit_attributes / visit_attributes_mut,
-            left: box => visit_expr / visit_expr_mut,
-            op: leaf,
-            right: box => visit_expr / visit_expr_mut,
+            operands: punct => visit_expr / visit_expr_mut,
         }
     }
     struct ExprAssign {
