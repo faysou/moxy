@@ -125,7 +125,6 @@ TOKENS f: trait A: {}
 # Intentional: moxy keeps a shebang of a path and one word as the file's
 # shebang tokens, which syn drops from the tokens
 TOKENS f: #!/usr/bin/env rust\n fn f() {}
-TOKENS f: #!/bin/sh\nfn f() {}
 TOKENS f: #!/usr/bin/env rust\n#![allow(a)]\nfn main() {}
 
 # Intentional: rustc rejects these after parsing, as moxy does while parsing:
