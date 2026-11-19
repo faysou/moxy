@@ -513,3 +513,15 @@ fn assignments_after_ranges_count_against_the_depth() {
         None
     );
 }
+
+#[test]
+fn blocks_count_against_the_same_depth_as_other_nesting() {
+    // Blocks counted only against the lexer's own limit, so blocks and
+    // closures together nested past the stack
+    let message = format!("nesting is deeper than {} levels", moxy::token::MAX_DEPTH);
+    let source = format!("{}{}a{}", "if a { ".repeat(140), "|x| ".repeat(141), " }".repeat(140));
+    assert_eq!(traverse_on_small_stack::<moxy::ast::Expr>(source), Some(message));
+
+    let source = format!("{}{}a{}", "if a { ".repeat(60), "|x| ".repeat(60), " }".repeat(60));
+    assert_eq!(traverse_on_small_stack::<moxy::ast::Expr>(source), None);
+}
