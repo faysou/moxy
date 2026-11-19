@@ -16,7 +16,6 @@ REJECT f: mod m { //! doc\n }
 REJECT f: trait A { #![a] }
 REJECT i: fn f() { #![allow(x)] }
 REJECT i: mod m { #![allow(x)] }
-TOKENS f: #!/usr/bin/env rust\n#![allow(a)]\nfn main() {}
 TREE f: fn f() { #![a] let x = 1; }
 TREE f: fn f() { #![a] x }
 TREE f: fn f() { #![allow(unused)] x; y }
@@ -31,26 +30,24 @@ TREE f: mod m { #![a] #![b] use c; }
 TREE f: mod m { #![a] fn f() {} }
 TREE f: mod m { //! doc\n fn f() {} }
 TREE f: trait A { #![a] fn f(); }
+ACCEPT e: #![a] x
+ACCEPT f: #[a] #![b] fn f() {}
+ACCEPT f: fn f() { let x = [#![a] 1]; }
 
 # Intentional: nightly or unstable syntax, out of scope
 ACCEPT b: { let x = static || 1; }
-ACCEPT e: abstract
 ACCEPT e: static move || 1
 ACCEPT e: static || 1
 REJECT e: become f()
 REJECT f: const X: u8 = 1 where T: U;
 REJECT f: const trait A {}
-REJECT f: fn f(a: u8, _: ...) {}
 REJECT f: m! ident ();
 REJECT f: m! ident {}
 REJECT f: macro m() {}
 REJECT f: pub macro m($a:expr) { $a }
 REJECT f: struct S { a: u8 = 1 }
-REJECT f: type B = fn(_: ...) -> Status;
-REJECT f: type B = unsafe extern "efiapi" fn(_: Handle, _: ...) -> Status;
 REJECT f: unsafe extern "C" fn f(a: u8, mut args: ...) {}
 REJECT p: S { box a }
-REJECT t: fn(a: A, va: ...)
 REJECT t: impl const A
 REJECT t: unsafe<'a> &'a A
 
@@ -124,8 +121,8 @@ TREE b: { {}; -1 }
 TREE p: &1..=2
 TREE p: self
 
-# Intentional: moxy emits the empty `<>`, `:`, and `where` that the source has,
-# which syn drops
+# Intentional: moxy emits the empty `<>`, `:`, and `where` and the variant
+# visibility that the source has, which syn drops
 TOKENS f: fn min<T:>(v1: T) -> T {}
 TOKENS f: impl<> Bound<> {}
 TOKENS f: impl<> X {}
@@ -133,24 +130,36 @@ TOKENS f: struct S<T: >(T);
 TOKENS f: struct S<>;
 TOKENS f: fn f<>() {}
 TOKENS i: struct S<T: >(T);
+TOKENS f: enum E { pub A }
+TOKENS f: fn f() where {}
+TOKENS f: trait A: {}
 
 # Intentional: moxy keeps a shebang of a path and one word as the file's
 # shebang tokens, which syn drops from the tokens
 TOKENS f: #!/usr/bin/env rust\n fn f() {}
 TOKENS f: #!/bin/sh\nfn f() {}
+TOKENS f: #!/usr/bin/env rust\n#![allow(a)]\nfn main() {}
 
 # Valid Rust that moxy rejects: a range as the end of another range
 REJECT e: a.. ..b
 
-# Pending: invalid input that moxy accepts or valid input it rejects, not yet fixed
+# Intentional: rustc rejects these after parsing, as moxy does while parsing:
+# a keyword as a lifetime name and an associated type without a type in an impl
+REJECT f: type Symbols<'false> = Table<Symbol<'false>>;
+REJECT f: impl<T> X<T> { type Item; #[inline] fn next() -> Option<T> {} fn advance_by(self, n: usize) -> Result<(), NonZero<usize>> { rem = if len < n {} else {} } }
+
+# Pending: invalid input that moxy accepts, a named variadic parameter, and
+# `mut self` as a pattern, not yet fixed
+ACCEPT e: abstract
+REJECT f: fn f(a: u8, _: ...) {}
+REJECT f: type B = fn(_: ...) -> Status;
+REJECT f: type B = unsafe extern "efiapi" fn(_: Handle, _: ...) -> Status;
+REJECT t: fn(a: A, va: ...)
 ACCEPT b: { a b }
 ACCEPT b: { let x = 1 }
 ACCEPT b: { let x = S {} else { return }; }
 ACCEPT b: { let x }
-ACCEPT e: #![a] x
 ACCEPT f: #[a = ] fn f() {}
-ACCEPT f: #[a] #![b] fn f() {}
-ACCEPT f: fn f() { let x = [#![a] 1]; }
 ACCEPT f: fn f(a | b: u8) {}
 ACCEPT f: m!()
 ACCEPT f: m![]
@@ -159,10 +168,4 @@ ACCEPT p: #[a] x
 ACCEPT p: -'a'
 ACCEPT p: [1.., 2]
 ACCEPT p: [1..]
-REJECT f: impl<T> X<T> { type Item; #[inline] fn next() -> Option<T> {} fn advance_by(self, n: usize) -> Result<(), NonZero<usize>> { rem = if len < n {} else {} } }
-REJECT f: type Symbols<'false> = Table<Symbol<'false>>;
 REJECT p: mut self
-TOKENS f: enum E { pub A }
-TOKENS f: fn f() where {}
-TOKENS f: trait A: {}
-TREE f: type T<U> where U: A = Vec<U>;
