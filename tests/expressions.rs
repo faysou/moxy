@@ -729,3 +729,23 @@ fn an_optional_operand_ends_at_the_body_of_a_condition() {
     let expression: Expr = moxy::parse!("return {}").unwrap();
     assert!(matches!(expression, Expr::Return(value) if value.expr.is_some()));
 }
+
+#[test]
+fn a_match_arm_ends_with_a_comma_unless_its_body_is_block_like() {
+    for source in [
+        "match a { b => {} d => e }",
+        "match a { b => c, d => e }",
+        "match a { b => c }",
+        "match a { b => if x {} else {} c => d }",
+    ] {
+        assert!(moxy::parse!(source as Expr).is_ok(), "`{source}`");
+    }
+
+    for source in [
+        "match a { b => c d => e }",
+        "match a { b => x? d => e }",
+        "match a { b => {}.x d => e }",
+    ] {
+        assert!(moxy::parse!(source as Expr).is_err(), "`{source}`");
+    }
+}

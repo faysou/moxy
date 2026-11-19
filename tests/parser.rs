@@ -80,7 +80,7 @@ fn delimited_lists_that_stop_early_are_errors() {
         ("fn f(x: u8 y: u8) {}", "unexpected trailing input"),
         ("fn f(x: Vec<u8 u8>) {}", "unexpected trailing input"),
         ("fn f() { g(a b) }", "expected `,` punctuation"),
-        ("fn f() { match x { 1 => a b } }", "expected `=>` punctuation"),
+        ("fn f() { match x { 1 => a b } }", "expected `,` after a match arm"),
         ("fn f() { let s = S { a: 1 b: 2 }; }", "unexpected trailing input"),
         ("fn f() { [1 2] }", "unexpected trailing input"),
         ("fn f() { (1 2) }", "unexpected trailing input"),
