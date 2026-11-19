@@ -108,3 +108,45 @@ fn combined_errors_emit_one_compile_error_each() {
         "compile_error ! (\"first failed\") ; compile_error ! (\"second failed\") ; compile_error ! (\"third failed\") ;"
     );
 }
+
+#[test]
+fn spanned_errors_run_from_the_first_token_to_the_last() {
+    let tokens = TokenStream::from_str("call(a, b) + Vec<u8>").unwrap();
+    let error = moxy::ast::ParseError::new_spanned(&tokens, "unsupported");
+    let emitted: Vec<TokenTree> = error.to_compile_error().iter().cloned().collect();
+    let TokenTree::Ident(first) = tokens.iter().next().unwrap() else {
+        panic!("expected an identifier");
+    };
+    let last = tokens.iter().last().unwrap().span();
+
+    assert_eq!(error.span(), first.span());
+    assert_eq!(emitted[0].span(), first.span());
+    assert_eq!(emitted[1].span(), first.span());
+    assert_eq!(emitted[3].span(), last);
+    assert_eq!(error.to_compile_error().to_string(), "compile_error ! (\"unsupported\") ;");
+
+    let tokens = TokenStream::from_str("(a, b)").unwrap();
+    let TokenTree::Group(group) = tokens.iter().next().unwrap() else {
+        panic!("expected a group");
+    };
+    let emitted: Vec<TokenTree> = moxy::ast::ParseError::new_spanned(&tokens, "unsupported")
+        .to_compile_error()
+        .iter()
+        .cloned()
+        .collect();
+    assert_eq!(emitted[0].span(), group.span.open());
+    assert_eq!(emitted[3].span(), group.span.close());
+}
+
+#[cfg(feature = "diagnostic")]
+#[test]
+fn diagnostics_from_spanned_errors_keep_both_ends() {
+    let tokens = TokenStream::from_str("call(a, b) + Vec<u8>").unwrap();
+    let error = moxy::ast::ParseError::new_spanned(&tokens, "unsupported");
+    let diagnostic = moxy::diagnostic::Diagnostic::from(&error);
+
+    assert_eq!(diagnostic.spans(), [error.span(), error.end_span()]);
+    let emitted: Vec<TokenTree> = diagnostic.to_compile_error().iter().cloned().collect();
+    assert_eq!(emitted[0].span(), error.span());
+    assert_eq!(emitted[3].span(), error.end_span());
+}
