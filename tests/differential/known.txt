@@ -141,10 +141,6 @@ REJECT i: fn f<F>() where F: AsyncFnOnce() {}
 REJECT i: fn f<F: MyTrait(u8)>() {}
 REJECT i: impl<F: FnOnce<A> + ?Sized> X for Y {}
 REJECT f: const X: u8 = 1 where T: U;
-REJECT f: struct S(pub (u8, u8));
-REJECT f: struct S(pub (super::A));
-REJECT f: struct S(pub (self::A));
-REJECT f: struct S(pub (crate::A));
 REJECT f: trait A { #![a] }
 REJECT f: trait A { pub fn f(); }
 REJECT f: const trait A {}
@@ -180,10 +176,6 @@ REJECT f: fn f() { #![a] }
 REJECT f: impl A { #![a] }
 REJECT f: fn f() { loop { #![a] } }
 REJECT f: fn f() { match x { #![a] } }
-REJECT f: struct S(pub (u8));
-REJECT f: struct S(pub ());
-REJECT f: struct S(pub (A, B), pub(crate) C);
-REJECT f: enum E { A(pub (u8, u8)) }
 REJECT f: #!/usr/bin/env -S cargo +nightly -Zscript\nfn main() {}
 REJECT f: #!/usr/local/bin/rust-script.sh\nfn main() {}
 REJECT f: #!/usr/bin/env rust-script\nfn main() {}
@@ -201,8 +193,6 @@ REJECT b: { let x: Fn<u8> = y; }
 REJECT i: impl<T> Fn<T> {}
 REJECT t: Box<dyn AsyncFnMut(u8)>
 REJECT i: fn f(g: impl AsyncFnOnce(u8) -> u8) {}
-REJECT i: struct S(pub (u8, u8));
-REJECT i: struct S(pub (u32, u32), pub u8);
 REJECT i: use ::serde;
 REJECT i: use ::core as _core;
 REJECT i: mod m { #![allow(x)] }
