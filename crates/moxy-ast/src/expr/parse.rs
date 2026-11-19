@@ -515,10 +515,7 @@ fn primary(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<B
         return path_macro_or_struct(parser, attrs, context);
     }
 
-    let remaining = parser.remaining();
-    let tokens = parser.to_token_stream();
-    parser.advance_by(remaining);
-    Ok(Box::new(Expr::Verbatim(tokens)))
+    parser.error("expected expression").into()
 }
 
 fn lit(parser: &Parser, attrs: Attributes) -> Result<Box<Expr>, ParseError> {

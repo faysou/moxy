@@ -244,7 +244,7 @@ fn primary(mut cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
     let qualified = <Token![<]>::peek(cursor);
 
     if !qualified && !Path::peek(cursor) {
-        return Some(cursor.offset(cursor.remaining()));
+        return None;
     }
 
     cursor = if qualified {

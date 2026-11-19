@@ -621,3 +621,29 @@ fn a_float_after_a_field_dot_is_two_tuple_indices() {
     let expression: Expr = moxy::parse!("a..0.1").unwrap();
     assert!(expression.as_range().unwrap().end.as_ref().unwrap().is_lit());
 }
+
+#[test]
+fn a_token_that_starts_no_expression_is_an_error() {
+    for source in ["a +", "+ a", "f(,)", "f(a,,b)", "[a;]", "(,)", "&raw const", ";"] {
+        let error = moxy::parse!(source as Expr)
+            .err()
+            .unwrap_or_else(|| panic!("`{source}` parsed"));
+        assert!(!error.message().is_empty(), "`{source}`");
+    }
+
+    for (source, tokens) in [
+        ("return.x", "return . x"),
+        ("return?", "return ?"),
+        ("S { a, .. } = b", "S {a , ..} = b"),
+    ] {
+        let expression: Expr = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        assert_eq!(expression.to_token_stream().to_string(), tokens);
+    }
+
+    let expression: Expr = moxy::parse!("return.x").unwrap();
+    assert!(expression.as_field().unwrap().base.as_return().unwrap().expr.is_none());
+
+    let expression: Expr = moxy::parse!("S { a, .. } = b").unwrap();
+    let body = &expression.as_assign().unwrap().left.as_struct().unwrap().body.inner;
+    assert!(body.rest.as_ref().unwrap().1.is_none());
+}
