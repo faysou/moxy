@@ -22,76 +22,7 @@ TREE p: (..)
 TREE p: &1..=2
 TREE p: self
 TREE f: impl A { #![inner] fn f() {} }
-TREE f: #[macro_use] extern crate a;
-TREE f: #[path = "a.rs"] mod m;
 TREE f: type T<U> where U: A = Vec<U>;
-TREE f: #[macro_export] macro_rules! m { () => {} }
-TREE f: #[a] m!();
-TREE f: /// outer\n fn f() {}
-TREE f: /** outer */ fn f() {}
-TREE f: /// a\n /// b\n fn f() {}
-TREE f: /// d\r\nfn f() {}
-TREE f: #[a = 1] fn f() {}
-TREE f: #[a(b, c = 1, d(e))] fn f() {}
-TREE f: #[a::b] fn f() {}
-TREE f: #[a::b(c)] fn f() {}
-TREE f: #[a = "b"] #[c] fn f() {}
-TREE f: #[cfg_attr(a, b)] fn f() {}
-TREE f: #[a {}] fn f() {}
-TREE f: #[a []] fn f() {}
-TREE f: #[a = b::c] fn f() {}
-TREE f: #[a = -1] fn f() {}
-TREE f: #[a = m!()] fn f() {}
-TREE f: #[a = 1 + 2] fn f() {}
-TREE f: #[unsafe(no_mangle)] fn f() {}
-TREE f: #[unsafe(a::b(c))] fn f() {}
-TREE f: #[a(unsafe)] fn f() {}
-TREE f: #[doc = include_str!("a")] fn f() {}
-TREE f: # [a] fn f() {}
-TREE f: #[::a] fn f() {}
-TREE f: #[crate::a] fn f() {}
-TREE f: #[self::a] fn f() {}
-TREE f: #[r#a] fn f() {}
-TREE f: #[a(b = )] fn f() {}
-TREE f: #[a(,)] fn f() {}
-TREE f: #[a("b", 1, 'c', true)] fn f() {}
-TREE f: #[derive(A, B,)] struct S;
-TREE f: #[derive()] struct S;
-TREE f: #[a(b(c(d(e))))] struct S;
-TREE f: #[repr(C, align(8))] struct S;
-TREE f: #[cfg(all(a, not(b), any(c = "d")))] struct S;
-TREE f: #[deprecated(since = "1", note = "x")] struct S;
-TREE f: #[link(name = "a", kind = "static")] extern "C" {}
-TREE f: #[must_use = "x"] fn f() {}
-TREE f: #[inline(always)] fn f() {}
-TREE f: #[a(b::c = 1)] fn f() {}
-TREE f: #[a(b::c(d))] fn f() {}
-TREE f: #[a(1 + 2)] fn f() {}
-TREE f: #[a(|x| x)] fn f() {}
-TREE f: #[a(b => c)] fn f() {}
-TREE f: #[a(for<'a> b)] fn f() {}
-TREE f: #[a(#[b] c)] fn f() {}
-TREE f: #[a(pub b)] fn f() {}
-TREE f: #[a(fn)] fn f() {}
-TREE f: #[a(-1)] fn f() {}
-TREE f: #[a(b: c)] fn f() {}
-TREE f: #[a(b = c = d)] fn f() {}
-TREE f: #[a(b = [1, 2])] fn f() {}
-TREE f: #[a(b = (1, 2))] fn f() {}
-TREE f: #[a(b = {1})] fn f() {}
-TREE f: #[a(b = &c)] fn f() {}
-TREE f: #[a(b = c.d)] fn f() {}
-TREE f: #[a(b = c!())] fn f() {}
-TREE f: #[a(b = "c", d = e::f)] fn f() {}
-TREE f: #[a(b = <T>::c)] fn f() {}
-TREE f: #[a(b = Vec<u8>)] fn f() {}
-TREE f: #[a(b = Vec::<u8>::new())] fn f() {}
-TREE f: #[a(type = "b")] fn f() {}
-TREE f: #[a(crate = "b")] fn f() {}
-TREE f: #[a(default)] fn f() {}
-TREE f: #[a(in = 1)] fn f() {}
-TREE f: #[serde(rename = "type", default = "f")] struct S;
-TREE f: #[a(where T: U)] struct S;
 TREE f: mod m { #![a] fn f() {} }
 TREE f: mod m { #![a] #![b] use c; }
 TREE f: mod m { //! doc\n fn f() {} }
@@ -106,14 +37,7 @@ TREE f: fn f() { match x { #![a] _ => 1 } }
 TREE f: fn f() { while x { #![a] y; } }
 TREE f: fn f() { for x in y { #![a] z; } }
 TREE f: fn f() { /** a /* nested */ b */ fn g() {} }
-TREE f: /// a "quoted" \\ back\nfn f() {}
 TREE f: /** multi\n * line\n */ fn f() {}
-TREE f: ///\nfn f() {}
-TREE f: /** */ fn f() {}
-TREE f: ///! x\nfn f() {}
-TREE f: /// é 日本\nfn f() {}
-TREE f: ///\tindented\tdoc  \nfn f() {}
-TREE f: ///     code block\nfn f() {}
 TREE t: impl Fn() -> impl A + B
 TREE t: impl Fn() -> dyn A + B
 
@@ -434,7 +358,6 @@ ACCEPT f: #[a] #![b] fn f() {}
 ACCEPT f: #[a::<T>] fn f() {}
 ACCEPT f: #[a = ] fn f() {}
 ACCEPT f: fn f() { let x = [#![a] 1]; }
-ACCEPT f: /// only outer doc
 ACCEPT f: fn f() { ' a' }
 ACCEPT f: fn f() { 1 .. 2; 1 . 2; 1. 2; 1 .2; }
 ACCEPT t: &'a dyn Fn() -> A + Send
