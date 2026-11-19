@@ -497,3 +497,13 @@ fn raw_borrows_keep_the_raw_keyword() {
         assert_eq!(expression.to_token_stream().to_string(), tokens);
     }
 }
+
+#[test]
+fn break_keeps_its_label() {
+    let expression: Expr = moxy::parse!("'a: loop { break 'a; }").unwrap();
+    let Some(moxy::ast::Stmt::Expr(statement, _)) = expression.as_loop().unwrap().body.stmts.inner.first() else {
+        panic!("expected an expression statement");
+    };
+    let label = statement.as_break().unwrap().label.as_ref().unwrap();
+    assert_eq!(label.to_token_stream().to_string(), "'a");
+}
