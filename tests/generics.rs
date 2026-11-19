@@ -204,3 +204,16 @@ fn bound_lists_take_a_trailing_separator() {
         );
     }
 }
+
+#[test]
+fn a_const_parameter_default_is_a_block_a_literal_or_a_name() {
+    for default in ["1", "-1", "{ 1 + 1 }", "A", "true", "Self"] {
+        let source = format!("struct S<const N: usize = {default}>;");
+        assert!(moxy::parse!(source as moxy::ast::Item).is_ok(), "`{source}`");
+    }
+
+    for default in ["A::B", "(1)", "1 + 1", "-A"] {
+        let source = format!("struct S<const N: usize = {default}>;");
+        assert!(moxy::parse!(source as moxy::ast::Item).is_err(), "`{source}`");
+    }
+}
