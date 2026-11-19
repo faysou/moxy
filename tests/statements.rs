@@ -165,3 +165,19 @@ fn nested_block_statements_that_a_method_call_follows_parse_in_linear_time() {
     );
     assert!(block.stmts.inner[0].is_expr());
 }
+
+#[test]
+fn statements_in_blocks_inside_generic_arguments_parse_in_linear_time() {
+    // Peeking for a macro call skipped each statement's path with its generic
+    // arguments, and with them every block nested inside, before parsing it
+    let depth = 40;
+    let source = format!("{}1{}", "{ A::<{ ".repeat(depth), " }>::C }".repeat(depth));
+    let start = std::time::Instant::now();
+    let expression: moxy::ast::Expr = moxy::parse!(source).unwrap();
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(5),
+        "took {:?}",
+        start.elapsed()
+    );
+    assert!(expression.is_block());
+}
