@@ -585,3 +585,65 @@ fn receivers_and_trait_aliases_with_blocks_in_their_types_parse_in_linear_time()
     let item: moxy::ast::Item = moxy::parse!("unsafe trait A<T>: B {}").unwrap();
     assert!(item.is_trait());
 }
+
+#[test]
+fn chains_of_any_length_parse_and_traverse_on_a_small_stack() {
+    use moxy::ast::{Expr, File, Visit, VisitMut};
+    use moxy::token::{ToTokenStream, TokenStream};
+
+    struct WalkMut;
+
+    impl VisitMut for WalkMut {}
+
+    // The steps of the one chain at the top of each tree
+    fn steps(expression: &Expr) -> usize {
+        match expression {
+            Expr::BinaryChain(chain) => chain.operands.len() - 1,
+            Expr::Postfix(chain) => chain.ops.len(),
+            Expr::CastChain(chain) => chain.casts.len(),
+            Expr::IfChain(chain) => chain.else_ifs.len(),
+            _ => 0,
+        }
+    }
+
+    let steps_wanted = 100_000;
+
+    for (source, wanted) in [
+        (format!("a{}", " + a".repeat(steps_wanted)), steps_wanted),
+        (format!("a{}", ".b()".repeat(steps_wanted)), steps_wanted),
+        (format!("a{}", "?".repeat(steps_wanted)), steps_wanted),
+        (format!("a{}", " as T".repeat(steps_wanted)), steps_wanted),
+        (
+            format!("if a {{}}{} else {{}}", " else if a {}".repeat(steps_wanted)),
+            steps_wanted,
+        ),
+        // A sum of method chains that end in casts
+        (format!("a{}", " + a.b()? as T".repeat(steps_wanted / 4)), steps_wanted / 4),
+    ] {
+        let checked = on_small_stack(move || {
+            let lexed: TokenStream = source.parse().unwrap();
+            let mut node: Expr = moxy::parse!(source).unwrap();
+            assert_eq!(steps(&node), wanted);
+            assert_eq!(node.to_token_stream().to_string(), lexed.to_string());
+            WalkMut.visit_expr_mut(&mut node);
+            let formatted = moxy::fmt!(&node).unwrap();
+            let again: Expr = moxy::parse!(formatted).unwrap();
+            assert!(again == node);
+            traverse(node, |node| Walk.visit_expr(node));
+            true
+        });
+        assert!(checked);
+    }
+
+    let source = format!("use {}a;", "a::".repeat(steps_wanted));
+    let checked = on_small_stack(move || {
+        let lexed: TokenStream = source.parse().unwrap();
+        let node: File = moxy::parse!(source).unwrap();
+        let path = node.items[0].as_use().unwrap().tree.as_path_chain().unwrap();
+        assert_eq!(path.segments.len(), steps_wanted);
+        assert_eq!(node.to_token_stream().to_string(), lexed.to_string());
+        traverse(node, |node| node.items.iter().for_each(|item| Walk.visit_item(item)));
+        true
+    });
+    assert!(checked);
+}
