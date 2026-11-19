@@ -161,8 +161,10 @@ fn range_rest(
     let mut end = None;
 
     // The end may itself be a range without a start, as in `a.. ..b`
-    if peek::nested_range(parser.cursor()) {
-        end = Some(range_rest(parser, Default::default(), None, context)?);
+    if RangeLimits::peek(parser.cursor()) {
+        if peek::nested_range(parser.cursor()) {
+            end = Some(range_rest(parser, Default::default(), None, context)?);
+        }
     } else if !context.is_end(parser.cursor()) && Expr::peek(parser.cursor()) {
         end = Some(binary(parser, Default::default(), context, Precedence::Or)?);
     }
@@ -320,6 +322,11 @@ fn unary_with(parser: &Parser, attrs: Attributes, context: ExprContext) -> Resul
     } else {
         attrs
     };
+
+    // An operand may be a range without a start, as in `f(&..)` and `a + ..b`
+    if RangeLimits::peek(parser.cursor()) {
+        return range_rest(parser, attrs, None, context);
+    }
 
     if <Token![&]>::peek(parser.cursor()) {
         return reference(parser, attrs, context);
