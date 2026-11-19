@@ -94,3 +94,17 @@ fn delimited_lists_that_stop_early_are_errors() {
         assert_eq!(error.message(), "unexpected trailing input", "`{source}`");
     }
 }
+
+#[test]
+fn combined_errors_emit_one_compile_error_each() {
+    let tokens = TokenStream::from_str("first second third").unwrap();
+    let spans: Vec<moxy::token::Span> = tokens.iter().map(moxy::token::Spanner::span).collect();
+    let error = moxy::ast::ParseError::new(spans[0], "first failed")
+        .combine(moxy::ast::ParseError::new(spans[1], "second failed"))
+        .combine(moxy::ast::ParseError::new(spans[2], "third failed"));
+
+    assert_eq!(
+        error.to_compile_error().to_string(),
+        "compile_error ! (\"first failed\") ; compile_error ! (\"second failed\") ; compile_error ! (\"third failed\") ;"
+    );
+}

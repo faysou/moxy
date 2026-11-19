@@ -35,7 +35,19 @@ impl ParseError {
         self
     }
 
+    /// Returns a `compile_error!` invocation for this error, followed by one for
+    /// each error combined into it, so the compiler reports all of them.
     pub fn to_compile_error(&self) -> TokenStream {
+        let mut tokens = self.to_compile_error_alone();
+
+        for child in &self.children {
+            tokens.extend(child.to_compile_error());
+        }
+
+        tokens
+    }
+
+    fn to_compile_error_alone(&self) -> TokenStream {
         let span = self.span;
         let ident = Ident::new("compile_error").with_span(span);
         let bang = <Token![!]>::new(span);
