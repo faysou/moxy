@@ -4,7 +4,6 @@
 
 # Different trees
 TREE e: match a { 0...5 => 1 }
-TREE e: || -> u8 { 1 }.x
 TREE e: a.01
 TREE b: { #[a] 1..2; }
 TREE b: { {}; -1 }
@@ -89,12 +88,9 @@ ACCEPT f: use a::{::b};
 ACCEPT e: a..b = c
 ACCEPT e: static || 1
 ACCEPT e: static move || 1
-ACCEPT e: |x: u8| -> u8 x
 ACCEPT e: #![a] x
 ACCEPT e: b'\u{1}'
 ACCEPT e: c"\0"
-ACCEPT e: a..=
-ACCEPT e: ..=
 ACCEPT e: <a::Fn(A) -> B>::c
 ACCEPT e: abstract
 ACCEPT e: a..b = c..d
