@@ -57,6 +57,8 @@ pub(crate) fn single(cursor: Cursor<'_>) -> Option<Cursor<'_>> {
             }
 
             if after.is_delimited(moxy_token::Delim::Brace) {
+                // The parser's second level for a struct pattern
+                let _weight = moxy_token::Depth::enter_by(1)?;
                 let inner = PatStructBody::skip(after.descend(moxy_token::Delim::Brace)?)?;
                 return inner.is_empty().then(|| after.offset(1));
             }

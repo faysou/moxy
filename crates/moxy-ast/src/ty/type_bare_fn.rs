@@ -72,6 +72,7 @@ impl Parse for TypeBareFn {
     }
 
     fn skip(mut cursor: Cursor<'_>) -> Option<Cursor<'_>> {
+        let _weight = moxy_token::Depth::enter_by(1)?;
         cursor = BoundLifetimes::skip(cursor).unwrap_or(cursor);
         cursor = Option::<Token![unsafe]>::skip(cursor)?;
         cursor = Option::<Abi>::skip(cursor)?;

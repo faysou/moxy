@@ -78,7 +78,7 @@ fn public_parse_rejects_trailing_tokens() {
 fn delimited_lists_that_stop_early_are_errors() {
     for (source, message) in [
         ("fn f(x: u8 y: u8) {}", "unexpected trailing input"),
-        ("fn f(x: Vec<u8 u8>) {}", "unexpected trailing input"),
+        ("fn f(x: Vec<u8 u8>) {}", "expected `>` punctuation"),
         ("fn f() { g(a b) }", "expected `,` punctuation"),
         ("fn f() { match x { 1 => a b } }", "expected `,` after a match arm"),
         ("fn f() { let s = S { a: 1 b: 2 }; }", "unexpected trailing input"),
@@ -325,6 +325,120 @@ const NESTED: &[(&str, char, &str, &str, &str, &str, &str, bool)] = &[
     ),
     ("nested blocks", 'b', "", "{ ", "x", " }", "", false),
     ("ifs in a block", 'b', "{ ", "if a { ", "x", " }", " }", false),
+    ("let chain", 'e', "", "if let a = b && (", "c", ") {}", "", false),
+    ("while let", 'e', "", "while let a = (", "b", ") {}", "", false),
+    ("labeled while", 'e', "", "'a: while a { ", "x", " }", "", false),
+    ("labeled for", 'e', "", "'a: for x in y { ", "x", " }", "", false),
+    ("let pattern", 'b', "{ let ", "(", "x", ")", " = y; }", false),
+    ("arm pattern", 'e', "match a { ", "(", "x", ")", " => {} }", false),
+    ("for pattern", 'e', "for ", "(", "x", ")", " in y {}", false),
+    ("parameter pattern", 'f', "fn f(", "(", "x", ")", ": u8) {}", false),
+    ("or-pattern", 'p', "", "(", "x", " | y)", "", false),
+    ("qualified pattern", 'p', "", "<", "T", " as A>::B", "", false),
+    ("qualified expression", 'e', "", "<", "T", " as A>::B", "", false),
+    ("expression attributes", 'e', "", "#[a] (", "x", ")", "", false),
+    ("statement attributes", 'b', "", "{ #[a] ", "x", " }", "", false),
+    ("inner attributes", 'b', "", "{ #![a] ", "x", " }", "", false),
+    (
+        "higher-ranked where",
+        'f',
+        "fn f() where for<'a> T: ",
+        "A<",
+        "B",
+        ">",
+        " {}",
+        false,
+    ),
+    (
+        "higher-ranked bound",
+        'f',
+        "fn f<T: for<'a> ",
+        "A<",
+        "B",
+        ">",
+        ">() {}",
+        false,
+    ),
+    ("parenthesized first bound", 't', "", "(A<", "u8", ">) + B", "", false),
+    ("dyn parenthesized bound", 't', "", "dyn (A<", "u8", ">)", "", false),
+    ("argument impl", 'f', "fn f(a: ", "impl A<", "u8", ">", ") {}", false),
+    (
+        "const generic default",
+        'f',
+        "struct S<const N: usize = ",
+        "{ ",
+        "1",
+        " }",
+        ">;",
+        false,
+    ),
+    (
+        "associated type bound",
+        'f',
+        "trait A { type T: ",
+        "B<",
+        "C",
+        ">",
+        "; }",
+        false,
+    ),
+    (
+        "impl associated type",
+        'f',
+        "impl A { type T = ",
+        "Vec<",
+        "u8",
+        ">",
+        "; }",
+        false,
+    ),
+    ("statement macro", 'b', "", "{ m! { ", "x", " } }", "", true),
+    ("higher-ranked closure", 'e', "", "for<'a> |x| ", "x", "", "", false),
+    ("closure parameter type", 'e', "|x: ", "Vec<", "u8", ">", "| x", false),
+    ("let type", 'b', "{ let x: ", "Vec<", "u8", ">", " = y; }", false),
+    ("parenthesized method", 'e', "", "(", "x", ").a()", "", false),
+    ("parenthesized cast", 'e', "", "(", "x", " as T) as T", "", false),
+    (
+        "block continued, cast, and added",
+        'e',
+        "",
+        "{ ",
+        "x",
+        " }.a() as T + 1",
+        "",
+        false,
+    ),
+    (
+        "block continued, cast, added, and assigned",
+        'e',
+        "",
+        "{ ",
+        "x",
+        " }.a() as T + 1 = y",
+        "",
+        false,
+    ),
+    (
+        "const block parameters",
+        'f',
+        "",
+        "fn f(const { ",
+        "",
+        " }: u8) {}",
+        "",
+        false,
+    ),
+    (
+        "const block closure parameters",
+        'e',
+        "",
+        "|const { ",
+        "1",
+        " }: u8| x",
+        "",
+        false,
+    ),
+    ("range pattern bounds", 'p', "", "const { ", "1", " }..=2", "", false),
 ];
 
 // A nested construct `n` levels deep
@@ -399,16 +513,94 @@ fn every_construct_nested_to_the_lexer_limit_reports_the_depth() {
         // Two levels are well formed
         assert_eq!(run(nested(case, 2)), (Ok(()), true, true), "{name} at 2 levels");
 
-        // As deep as the lexer accepts, the parser reports its own depth error
-        // and skipping fails, unless the construct is unbounded
+        // As deep as the lexer accepts, a construct that nests without groups
+        // reports the parser's depth error and fails to skip; one that nests
+        // through groups, which the lexer bounds, parses or reports that
+        // error. An unbounded construct parses
         let n = deepest_lexed(case);
-        let expected = if unbounded {
-            (Ok(()), true, true)
+        let outcome = run(nested(case, n));
+        let failed = (Err(message.clone()), false, true);
+
+        if unbounded {
+            assert_eq!(outcome, (Ok(()), true, true), "{name} at {n} levels");
+        } else if n == 50_000 {
+            assert_eq!(outcome, failed, "{name} at {n} levels");
         } else {
-            (Err(message.clone()), false, true)
-        };
-        assert_eq!(run(nested(case, n)), expected, "{name} at {n} levels");
+            assert!(
+                outcome == failed || outcome == (Ok(()), true, true),
+                "{name} at {n} levels: {outcome:?}"
+            );
+        }
     }
+}
+
+// The deepest nesting of a construct, at most as deep as the lexer accepts,
+// for which `holds` is true, found by bisection
+fn deepest_where(case: usize, holds: impl Fn(usize) -> bool) -> usize {
+    let lexed = deepest_lexed(case);
+
+    if holds(lexed) {
+        return lexed;
+    }
+
+    let (mut low, mut high) = (1, lexed);
+
+    while high - low > 1 {
+        let middle = (low + high) / 2;
+
+        if holds(middle) {
+            low = middle;
+        } else {
+            high = middle;
+        }
+    }
+
+    low
+}
+
+// Parses a source as `T` on a 2 MiB thread and runs every traversal on it
+fn traverse_parsed<T>(source: String, visit: fn(&T))
+where
+    T: Parse + moxy::token::ToTokenStream + moxy::token::Spanner + Clone + PartialEq + std::fmt::Debug,
+    T: moxy::fmt::Format + serde::Serialize + 'static,
+{
+    on_small_stack(move || traverse(moxy::parse!(source as T).unwrap(), visit));
+}
+
+#[test]
+fn every_construct_skips_to_the_depth_that_it_parses_to() {
+    use moxy::ast::{Expr, File, Pattern, StmtBlock, Type, Visit};
+
+    let mismatched: Vec<_> = (0..NESTED.len())
+        .filter_map(|case| {
+            let (name, kind, ..) = NESTED[case];
+            let run = |n: usize| match kind {
+                'e' => parse_skip_and_peek::<Expr>(nested(case, n)),
+                't' => parse_skip_and_peek::<Type>(nested(case, n)),
+                'p' => parse_skip_and_peek::<Pattern>(nested(case, n)),
+                'b' => parse_skip_and_peek::<StmtBlock>(nested(case, n)),
+                _ => parse_skip_and_peek::<File>(nested(case, n)),
+            };
+            let parsed = deepest_where(case, |n| run(n).0.is_ok());
+            let skipped = deepest_where(case, |n| run(n).1);
+
+            // Every traversal runs on the deepest tree that parses
+            let source = nested(case, parsed);
+            match kind {
+                'e' => traverse_parsed::<Expr>(source, |node| Walk.visit_expr(node)),
+                't' => traverse_parsed::<Type>(source, |node| Walk.visit_type(node)),
+                'p' => traverse_parsed::<Pattern>(source, |node| Walk.visit_pattern(node)),
+                'b' => traverse_parsed::<StmtBlock>(source, |node| Walk.visit_stmt_block(node)),
+                _ => traverse_parsed::<File>(source, |node| node.items.iter().for_each(|item| Walk.visit_item(item))),
+            }
+
+            (parsed != skipped).then_some((name, parsed, skipped))
+        })
+        .collect();
+    assert!(
+        mismatched.is_empty(),
+        "(construct, deepest parse, deepest skip): {mismatched:?}"
+    );
 }
 
 #[test]
@@ -526,31 +718,6 @@ fn block_like_statements_at_the_depth_limit_skip_in_linear_time() {
         let tokens: TokenStream = source.parse().unwrap();
         StmtBlock::skip(Parser::from_tokens(&tokens).cursor()).is_none()
     });
-}
-
-#[test]
-fn members_skip_to_the_depth_that_they_parse_to() {
-    use moxy::ast::File;
-
-    let message = format!("nesting is deeper than {} levels", moxy::token::MAX_DEPTH);
-
-    // Each as deep as the lexer accepts, past the depth that members parse to
-    for (open, close, groups) in [
-        ("impl A { fn f() { ", "} }", 2),
-        ("trait A { fn f() { ", "} }", 2),
-        ("extern \"C\" { static X: [u8; { ", " 1 }]; }", 3),
-    ] {
-        let depth = moxy::token::MAX_DEPTH / groups;
-        let source = format!("{}{}", open.repeat(depth), close.repeat(depth));
-        let message = message.clone();
-        let (error, skipped) = on_small_stack(move || {
-            let tokens: TokenStream = source.parse().unwrap();
-            let parser = Parser::from_tokens(&tokens);
-            let skipped = File::skip(parser.cursor()).is_some();
-            (File::parse(&parser).err().map(|error| error.message().to_string()), skipped)
-        });
-        assert_eq!((error.as_deref(), skipped), (Some(message.as_str()), false), "{open}");
-    }
 }
 
 #[test]
@@ -693,7 +860,7 @@ fn deep_trees_of_every_kind_parse_and_traverse_or_report_the_depth() {
         ),
         (
             "method call arguments",
-            MAX_DEPTH - 1,
+            (MAX_DEPTH - 2) / 2,
             deepest::<Expr>(|n| format!("{}x{}", "a.b(".repeat(n), ")".repeat(n)), expr),
         ),
         (
@@ -738,8 +905,33 @@ fn deep_trees_of_every_kind_parse_and_traverse_or_report_the_depth() {
         ),
         (
             "blocks with a method call",
-            MAX_DEPTH - 2,
+            (MAX_DEPTH - 2) / 2,
             deepest::<Expr>(|n| format!("{}x{}", "{ ".repeat(n), " }.a()".repeat(n)), expr),
+        ),
+        (
+            "blocks continued by a method call and an operator",
+            (MAX_DEPTH - 2) / 2,
+            deepest::<Expr>(|n| format!("{}x{}", "{ ".repeat(n), " }.a() + 1".repeat(n)), expr),
+        ),
+        (
+            "matches continued by a method call",
+            (MAX_DEPTH - 3) / 2,
+            deepest::<Expr>(|n| format!("{}x{}", "match a { _ => ".repeat(n), " }.a()".repeat(n)), expr),
+        ),
+        (
+            "calls continued, cast, and added",
+            (MAX_DEPTH - 1) / 3,
+            deepest::<Expr>(|n| format!("{}x{}", "f(".repeat(n), ").a()? as T + 1".repeat(n)), expr),
+        ),
+        (
+            "parentheses continued and added",
+            (MAX_DEPTH - 1) / 2,
+            deepest::<Expr>(|n| format!("{}x{}", "(".repeat(n), ").a() + 1".repeat(n)), expr),
+        ),
+        (
+            "qualified types",
+            (MAX_DEPTH - 1) / 2,
+            deepest::<Type>(|n| format!("{}T{}", "<".repeat(n), " as A>::B".repeat(n)), ty),
         ),
         (
             "function sugar",
@@ -798,27 +990,20 @@ fn deep_trees_of_every_kind_parse_and_traverse_or_report_the_depth() {
         ),
     ];
 
-    for (kind, expected, reached) in kinds {
-        assert_eq!(reached, expected, "{kind}");
-    }
+    let mismatched: Vec<_> = kinds.iter().filter(|(_, expected, reached)| reached != expected).collect();
+    assert!(mismatched.is_empty(), "(kind, expected, reached): {mismatched:?}");
 }
 
 #[test]
 fn a_pattern_at_the_depth_limit_reports_the_depth() {
-    let message = format!("nesting is deeper than {} levels", moxy::token::MAX_DEPTH);
+    use moxy::token::MAX_DEPTH;
 
-    for depth in [140, 142, 143, 144] {
-        let source = format!("{}1..=2{}", "(".repeat(depth), ")".repeat(depth));
-        let result = on_small_stack(move || {
-            moxy::parse!(source as moxy::ast::Pattern)
-                .map(|_| ())
-                .map_err(|error| error.message().to_string())
-        });
-
-        if let Err(error) = result {
-            assert_eq!(error, message, "at {depth} levels");
-        }
-    }
+    // A pattern keeps two levels of room for the peeks that choose its form
+    let message = format!("nesting is deeper than {MAX_DEPTH} levels");
+    let source = |depth: usize| format!("{}1..=2{}", "(".repeat(depth), ")".repeat(depth));
+    let results =
+        [MAX_DEPTH - 2, MAX_DEPTH - 1, MAX_DEPTH].map(|depth| traverse_on_small_stack::<moxy::ast::Pattern>(source(depth)));
+    assert_eq!(results, [None, Some(message.clone()), Some(message)]);
 }
 
 #[test]
@@ -996,11 +1181,9 @@ fn a_chain_of_atoms_costs_no_level_of_its_own() {
     // inside an operand of a weaker chain
     let parens = |n: usize| format!("{}1{}", "(1 + ".repeat(n), ")".repeat(n));
     let depth = moxy::token::MAX_DEPTH - 1;
-    assert!(moxy::parse!((parens(depth)) as moxy::ast::Expr).is_ok());
-
     let message = format!("nesting is deeper than {} levels", moxy::token::MAX_DEPTH);
-    let error = moxy::parse!((parens(depth + 1)) as moxy::ast::Expr).err().unwrap();
-    assert_eq!(error.message(), message);
+    let results = [depth, depth + 1].map(|n| traverse_on_small_stack::<moxy::ast::Expr>(parens(n)));
+    assert_eq!(results, [None, Some(message)]);
 }
 
 // A proc-macro2 stream of `n` nested groups

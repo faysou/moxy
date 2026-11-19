@@ -26,8 +26,16 @@ impl Spanner for PatType {
 }
 
 impl Parse for PatType {
+    // A pattern and a `:` start a typed pattern; the type is left to the
+    // parse. A pattern nested past the depth limit peeks as one, so its parse
+    // reports the depth error
     fn peek(cursor: Cursor<'_>) -> bool {
-        Self::skip(cursor).is_some()
+        let watch = moxy_token::Watch::start();
+
+        Attributes::skip(cursor)
+            .and_then(super::skip::single)
+            .is_some_and(|cursor| <Token![:]>::peek(cursor))
+            || watch.exceeded()
     }
 
     fn parse(parser: &Parser) -> Result<Self, ParseError> {

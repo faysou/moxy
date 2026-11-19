@@ -67,6 +67,7 @@ impl Parse for PatStruct {
     }
 
     fn skip(cursor: Cursor<'_>) -> Option<Cursor<'_>> {
+        let _weight = moxy_token::Depth::enter_by(1)?;
         let mut cursor = Attributes::skip(cursor)?;
         cursor = if <Token![<]>::peek(cursor) {
             TypePath::skip_expr(cursor)?

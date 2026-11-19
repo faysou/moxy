@@ -29,6 +29,7 @@ impl Parse for ParenArguments {
     }
 
     fn skip(cursor: Cursor<'_>) -> Option<Cursor<'_>> {
+        let _weight = moxy_token::Depth::enter_by(1)?;
         let mut cursor = <Token![::]>::skip(cursor).unwrap_or(cursor);
         let mut inner = cursor.descend(Delim::Paren)?;
 

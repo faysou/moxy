@@ -187,3 +187,14 @@ fn a_variadic_takes_a_trailing_comma() {
     // As in syn, nothing follows the variadic but its comma
     assert!(moxy::parse!("extern \"C\" { fn f(a: u8, ..., b: u8); }" as moxy::ast::Item).is_err());
 }
+
+#[test]
+fn a_variadic_pattern_may_hold_generic_arguments() {
+    // A `,` between generic arguments, which are no group, does not end the
+    // parameter
+    let item: moxy::ast::Item = moxy::parse!("extern \"C\" { fn f(S::<A, B>(x): ...); }").unwrap();
+    let moxy::ast::Item::ForeignMod(block) = &item else { panic!() };
+    let function = block.items[0].as_fn().unwrap();
+    let variadic = function.sig.params.inner.variadic.as_ref().unwrap();
+    assert!(function.sig.params.inner.inputs.is_empty() && variadic.pat.is_some());
+}

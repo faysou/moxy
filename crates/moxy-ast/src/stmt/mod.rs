@@ -138,6 +138,7 @@ impl Parse for Stmt {
         } else if block(cursor) {
             StmtBlock::skip(cursor)
         } else if Item::peek(cursor) && !macro_expr(cursor) {
+            let _weight = moxy_token::Depth::enter_by(1)?;
             Item::skip(cursor)
         } else {
             let (cursor, block_like) = crate::expr::skip::early_block_like(cursor)?;

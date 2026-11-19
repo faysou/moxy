@@ -581,6 +581,7 @@ impl Parse for Type {
         }
 
         if cursor.is_delimited(Delim::Bracket) {
+            let _weight = moxy_token::Depth::enter_by(1)?;
             let mut inner = cursor.descend(Delim::Bracket)?;
             inner = Type::skip(inner)?;
 

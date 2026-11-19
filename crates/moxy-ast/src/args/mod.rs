@@ -102,12 +102,15 @@ impl Parse for GenericArgument {
 
             cursor = Option::<AngleArguments>::skip(cursor)?;
 
+            // The parser's extra levels for a constraint and a binding
             if peek_lone_colon(cursor) {
+                let _weight = moxy_token::Depth::enter_by(2)?;
                 cursor = <Token![:]>::skip(cursor)?;
                 return List::<TypeBound, Token![+]>::skip_while_present(cursor);
             }
 
             if <Token![=]>::peek(cursor) {
+                let _weight = moxy_token::Depth::enter_by(1)?;
                 cursor = <Token![=]>::skip(cursor)?;
 
                 let is_const = starts_const(cursor);

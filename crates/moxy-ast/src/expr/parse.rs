@@ -29,7 +29,9 @@ pub(crate) fn early(parser: &Parser) -> Result<Box<Expr>, ParseError> {
         return assignment(parser, attrs, ExprContext::NORMAL);
     }
 
+    let subtree = moxy_token::Depth::subtree();
     let mut body = primary(parser, Attributes::default(), ExprContext::NORMAL)?;
+    let part = subtree.height();
 
     if !peek::continues_block_like(parser.cursor()) {
         if let Some(slot) = body.attrs_mut() {
@@ -39,14 +41,29 @@ pub(crate) fn early(parser: &Parser) -> Result<Box<Expr>, ParseError> {
         return Ok(body);
     }
 
-    block_like_rest(parser, body, attrs)
+    block_like_rest(parser, body, attrs, &subtree, part)
 }
 
 // The rest of an expression that a block-like one starts, as in
 // `{ x }.len() + 1`, parsed apart from `early` so the frame that a nested
 // block recurses through stays small
-fn block_like_rest(parser: &Parser, body: Box<Expr>, attrs: Attributes) -> Result<Box<Expr>, ParseError> {
-    let operand = cast_rest(parser, postfix_rest(parser, body, attrs)?)?;
+fn block_like_rest(
+    parser: &Parser,
+    body: Box<Expr>,
+    attrs: Attributes,
+    subtree: &moxy_token::Subtree,
+    part: usize,
+) -> Result<Box<Expr>, ParseError> {
+    // The postfix operations, and the casts after them, each wrap what they
+    // follow
+    let operand = postfix_rest(parser, body, attrs)?;
+    wrap(parser, subtree, part)?;
+
+    if <Token![as]>::peek(parser.cursor()) {
+        wrap(parser, subtree, subtree.height())?;
+    }
+
+    let operand = cast_rest(parser, operand)?;
     let left = binary_rest(parser, ExprContext::NORMAL, operand, Precedence::Or, false)?;
 
     if RangeLimits::peek(parser.cursor()) {
@@ -262,6 +279,13 @@ fn binary(
     binary_rest(parser, context, left, min, nested)
 }
 
+// Counts a level for a node that wraps the subtree read before it, as a chain
+// of casts or postfix operations wraps its operand: walking the tree takes a
+// level of stack for it however the parse nested
+fn wrap(parser: &Parser, subtree: &moxy_token::Subtree, part: usize) -> Result<(), ParseError> {
+    subtree.wrap(part).ok_or_else(|| ParseError::too_deep(parser.span()))
+}
+
 // Precedence climbing over the operators at least as strong as `min`. The
 // operators of one strength form one chain node and associate to the left;
 // comparisons do not chain
@@ -319,7 +343,18 @@ fn binary_rest(
 }
 
 fn cast(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<Box<Expr>, ParseError> {
-    let expr = unary_with(parser, attrs, context)?;
+    let subtree = moxy_token::Depth::subtree();
+    cast_wrapped(parser, unary_with(parser, attrs, context)?, &subtree)
+}
+
+// The casts after an operand, which wrap it. Apart from `cast`, whose frame
+// stays on the stack while the operand parses
+fn cast_wrapped(parser: &Parser, expr: Box<Expr>, subtree: &moxy_token::Subtree) -> Result<Box<Expr>, ParseError> {
+    if !<Token![as]>::peek(parser.cursor()) {
+        return Ok(expr);
+    }
+
+    wrap(parser, subtree, subtree.height())?;
     cast_rest(parser, expr)
 }
 
@@ -401,8 +436,27 @@ fn unary_op(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<
 }
 
 fn postfix(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<Box<Expr>, ParseError> {
-    let expr = primary(parser, Default::default(), context)?;
-    postfix_rest(parser, expr, attrs)
+    let subtree = moxy_token::Depth::subtree();
+    postfix_wrapped(parser, primary(parser, Default::default(), context)?, attrs, &subtree)
+}
+
+// The postfix operations after a primary expression, which wrap it; its
+// arguments are children of their own, which take no level for the base.
+// Apart from `postfix`, whose frame stays on the stack while the base parses
+fn postfix_wrapped(
+    parser: &Parser,
+    base: Box<Expr>,
+    attrs: Attributes,
+    subtree: &moxy_token::Subtree,
+) -> Result<Box<Expr>, ParseError> {
+    let part = subtree.height();
+    let expr = postfix_rest(parser, base, attrs)?;
+
+    if matches!(*expr, Expr::Postfix(_)) {
+        wrap(parser, subtree, part)?;
+    }
+
+    Ok(expr)
 }
 
 // The postfix operations that follow a primary expression, held in one
@@ -470,7 +524,15 @@ pub(super) fn peek_member_name(cursor: Cursor<'_>) -> bool {
         })
 }
 
+// The arguments of a call, method call, or index take a level of their own:
+// their parse frames take more stack than the nesting they hold
+fn arguments_level(parser: &Parser) -> Result<moxy_token::Depth, ParseError> {
+    moxy_token::Depth::enter().ok_or_else(|| ParseError::too_deep(parser.span()))
+}
+
 fn method_call(parser: &Parser) -> Result<Postfix, ParseError> {
+    let _depth = arguments_level(parser)?;
+
     Ok(Postfix::MethodCall(PostfixMethodCall {
         dot: <_ as Parse>::parse(parser)?,
         method: parser.parse_ident_any()?,
@@ -480,12 +542,16 @@ fn method_call(parser: &Parser) -> Result<Postfix, ParseError> {
 }
 
 fn call(parser: &Parser) -> Result<Postfix, ParseError> {
+    let _depth = arguments_level(parser)?;
+
     Ok(Postfix::Call(PostfixCall {
         args: Delimited::parse_paren_with(parser, List::parse_all)?,
     }))
 }
 
 fn index(parser: &Parser) -> Result<Postfix, ParseError> {
+    let _depth = arguments_level(parser)?;
+
     Ok(Postfix::Index(PostfixIndex {
         index: Delimited::parse_bracket_with(parser, |inner| boxed_expr(inner, ExprContext::NORMAL))?,
     }))

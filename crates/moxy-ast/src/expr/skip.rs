@@ -30,16 +30,26 @@ pub(crate) fn early_block_like(cursor: Cursor<'_>) -> Option<(Cursor<'_>, bool)>
     // skipping it again as an operand would retry every enclosing level, which
     // takes time exponential in the nesting
     if peek::block_like(start) {
+        let subtree = moxy_token::Depth::subtree();
         let end = primary(start, ExprContext::NORMAL)?;
+        let part = subtree.height();
 
         if !peek::continues_block_like(end) {
             return Some((end, true));
         }
 
         // The rest of the expression continues from the block-like one
-        // skipped once, as in the parser: `{ x }.len() + 1`
+        // skipped once, as in the parser: `{ x }.len() + 1`, which wraps it as
+        // in the parser
         let context = ExprContext::NORMAL;
-        let cursor = binary_rest(cast_rest(postfix_rest(end)?)?, context, Precedence::Or)?;
+        let operand = postfix_rest(end)?;
+        subtree.wrap(part)?;
+
+        if <Token![as]>::peek(operand) {
+            subtree.wrap(subtree.height())?;
+        }
+
+        let cursor = binary_rest(cast_rest(operand)?, context, Precedence::Or)?;
 
         if RangeLimits::peek(cursor) {
             return Some((range_limits(cursor, context)?.0, false));
@@ -110,8 +120,11 @@ fn primary(mut cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
         }
 
         // With a return type the body is a block, as in the parser
+        // With the parser's second level for the block, taken after the type
         if <Token![->]>::peek(cursor) {
-            return StmtBlock::skip(ReturnType::skip(cursor)?);
+            let cursor = ReturnType::skip(cursor)?;
+            let _weight = moxy_token::Depth::enter_by(1)?;
+            return StmtBlock::skip(cursor);
         }
 
         return expr(cursor, context);
@@ -289,6 +302,8 @@ fn primary(mut cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
     }
 
     if context.allow_struct && cursor.is_delimited(Delim::Brace) {
+        // The parser's second level for a struct literal
+        let _weight = moxy_token::Depth::enter_by(1)?;
         let inner = StructBody::skip(cursor.descend(Delim::Brace)?)?;
         return inner.is_empty().then(|| cursor.offset(1));
     }
@@ -297,13 +312,25 @@ fn primary(mut cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
 }
 
 fn postfix(cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
-    postfix_rest(primary(cursor, context)?)
+    let subtree = moxy_token::Depth::subtree();
+    let base = primary(cursor, context)?;
+    let part = subtree.height();
+    let end = postfix_rest(base)?;
+
+    // A postfix operation wraps its base, as in the parser
+    if end.remaining() != base.remaining() {
+        subtree.wrap(part)?;
+    }
+
+    Some(end)
 }
 
 // The postfix operators after a primary expression
 fn postfix_rest(mut cursor: Cursor<'_>) -> Option<Cursor<'_>> {
     loop {
+        // Arguments and an index take the parser's level of their own
         if cursor.is_delimited(Delim::Paren) {
+            let _depth = moxy_token::Depth::enter()?;
             let inner = list(cursor.descend(Delim::Paren)?)?;
 
             if !inner.is_empty() {
@@ -315,6 +342,7 @@ fn postfix_rest(mut cursor: Cursor<'_>) -> Option<Cursor<'_>> {
         }
 
         if cursor.is_delimited(Delim::Bracket) {
+            let _depth = moxy_token::Depth::enter()?;
             let inner = Expr::skip(cursor.descend(Delim::Bracket)?)?;
 
             if !inner.is_empty() {
@@ -341,6 +369,7 @@ fn postfix_rest(mut cursor: Cursor<'_>) -> Option<Cursor<'_>> {
                 let args = Option::<AngleArguments>::skip(after_method)?;
 
                 {
+                    let _depth = moxy_token::Depth::enter()?;
                     let inner = list(args.descend(Delim::Paren)?)?;
 
                     if !inner.is_empty() {
@@ -418,7 +447,15 @@ fn unary(cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
 }
 
 fn cast(cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
-    cast_rest(unary(cursor, context)?)
+    let subtree = moxy_token::Depth::subtree();
+    let operand = unary(cursor, context)?;
+
+    // A cast wraps its operand, as in the parser
+    if <Token![as]>::peek(operand) {
+        subtree.wrap(subtree.height())?;
+    }
+
+    cast_rest(operand)
 }
 
 fn cast_rest(mut cursor: Cursor<'_>) -> Option<Cursor<'_>> {
