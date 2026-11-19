@@ -116,3 +116,20 @@ fn const_generic_arguments_end_at_the_closing_angle_bracket() {
         assert_eq!(moxy::fmt!(&ty).unwrap(), expected);
     }
 }
+
+#[test]
+fn generic_arguments_accept_paths_with_several_segments() {
+    for (source, expected) in [
+        ("Vec<a::B>", "Vec<a::B>"),
+        ("Result<a::B, c::D>", "Result<a::B, c::D>"),
+        ("Option<::std::string::String>", "Option<::std::string::String>"),
+        (
+            "&'static mut Vec<std::borrow::Cow<'_, str>>",
+            "&'static mut Vec<std::borrow::Cow<'_, str>>",
+        ),
+        ("Vec<a::B<u8>>", "Vec<a::B<u8>>"),
+    ] {
+        let ty: Type = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        assert_eq!(moxy::fmt!(&ty).unwrap(), expected);
+    }
+}

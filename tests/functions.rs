@@ -36,3 +36,11 @@ fn unsafe_extern_variadic_functions_render_exactly() {
         "pub unsafe extern \"C\" fn log(format: *const u8, ...) -> i32 {\n\t0\n}"
     );
 }
+
+#[test]
+fn parameters_after_a_path_generic_argument_are_kept() {
+    let item: Item = moxy::parse!("fn f(x: Vec<a::B>, y: u8) -> u8 { y }").unwrap();
+    let function = item.as_fn().unwrap();
+    assert_eq!(function.sig.params.inner.inputs.len(), 2);
+    assert_eq!(moxy::fmt!(&item).unwrap(), "fn f(x: Vec<a::B>, y: u8) -> u8 {\n\ty\n}");
+}
