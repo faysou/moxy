@@ -41,14 +41,14 @@ fn optional_expr(parser: &Parser, context: ExprContext) -> Result<Option<Box<Exp
 }
 
 fn assignment(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<Expr, ParseError> {
-    let left = range(parser, attrs.clone(), context)?;
+    let left = range(parser, attrs, context)?;
 
     if <Token![=]>::peek(parser.cursor()) && !<Token![==]>::peek(parser.cursor()) && !<Token![=>]>::peek(parser.cursor()) {
         return Ok(ExprAssign {
-            attrs: attrs.clone(),
+            attrs: Default::default(),
             left: Box::new(left),
             eq: <_ as Parse>::parse(parser)?,
-            right: Box::new(assignment(parser, attrs, context)?),
+            right: Box::new(assignment(parser, Default::default(), context)?),
         }
         .into());
     }
@@ -57,10 +57,10 @@ fn assignment(parser: &Parser, attrs: Attributes, context: ExprContext) -> Resul
     // `x += y + z` adds first, `a += b = c` assigns `c` to `b` first
     if peek_binary(parser.cursor(), context).is_some_and(|op| Precedence::of(&op) == Precedence::Assign) {
         return Ok(ExprBinary {
-            attrs: attrs.clone(),
+            attrs: Default::default(),
             left: Box::new(left),
             op: <_ as Parse>::parse(parser)?,
-            right: Box::new(assignment(parser, attrs, context)?),
+            right: Box::new(assignment(parser, Default::default(), context)?),
         }
         .into());
     }
@@ -74,11 +74,11 @@ fn range(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<Exp
         let mut end = None;
 
         if !context.is_end(parser.cursor()) && Expr::peek(parser.cursor()) {
-            end = Some(Box::new(binary(parser, attrs.clone(), context, Precedence::Or)?));
+            end = Some(Box::new(binary(parser, Default::default(), context, Precedence::Or)?));
         }
 
         return Ok(ExprRange {
-            attrs: Default::default(),
+            attrs,
             start: None,
             limits,
             end,
@@ -86,14 +86,14 @@ fn range(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<Exp
         .into());
     }
 
-    let left = binary(parser, attrs.clone(), context, Precedence::Or)?;
+    let left = binary(parser, attrs, context, Precedence::Or)?;
 
     if RangeLimits::peek(parser.cursor()) {
         let limits = <_ as Parse>::parse(parser)?;
         let mut end = None;
 
         if !context.is_end(parser.cursor()) && Expr::peek(parser.cursor()) {
-            end = Some(Box::new(binary(parser, attrs.clone(), context, Precedence::Or)?));
+            end = Some(Box::new(binary(parser, Default::default(), context, Precedence::Or)?));
         }
 
         return Ok(ExprRange {
@@ -174,19 +174,13 @@ fn peek_binary(cursor: Cursor<'_>, context: ExprContext) -> Option<BinOp> {
 }
 
 fn binary(parser: &Parser, attrs: Attributes, context: ExprContext, min: Precedence) -> Result<Expr, ParseError> {
-    let left = cast(parser, attrs.clone(), context)?;
-    binary_rest(parser, attrs, context, left, min)
+    let left = cast(parser, attrs, context)?;
+    binary_rest(parser, context, left, min)
 }
 
 // Precedence climbing over the operators at least as strong as `min`. Operators
 // of one strength associate to the left; comparisons do not chain
-fn binary_rest(
-    parser: &Parser,
-    attrs: Attributes,
-    context: ExprContext,
-    mut left: Expr,
-    min: Precedence,
-) -> Result<Expr, ParseError> {
+fn binary_rest(parser: &Parser, context: ExprContext, mut left: Expr, min: Precedence) -> Result<Expr, ParseError> {
     while let Some(op) = peek_binary(parser.cursor(), context) {
         let precedence = Precedence::of(&op);
 
@@ -195,14 +189,14 @@ fn binary_rest(
         }
 
         let op: BinOp = <_ as Parse>::parse(parser)?;
-        let mut right = cast(parser, attrs.clone(), context)?;
+        let mut right = cast(parser, Default::default(), context)?;
 
         if let Some(stronger) = precedence.next() {
-            right = binary_rest(parser, attrs.clone(), context, right, stronger)?;
+            right = binary_rest(parser, context, right, stronger)?;
         }
 
         left = ExprBinary {
-            attrs: attrs.clone(),
+            attrs: Default::default(),
             left: Box::new(left),
             op,
             right: Box::new(right),
@@ -240,33 +234,41 @@ pub(crate) fn unary(parser: &Parser, attrs: Attributes) -> Result<Expr, ParseErr
     unary_with(parser, attrs, ExprContext::PATTERN_BOUND)
 }
 
+// Outer attributes belong to the operand of a binary operator or cast: the
+// unary expression, or the whole chain of postfix operators, that follows them
 fn unary_with(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<Expr, ParseError> {
+    let attrs = if attrs.is_empty() {
+        <_ as Parse>::parse(parser)?
+    } else {
+        attrs
+    };
+
     if <Token![&]>::peek(parser.cursor()) {
         if <Token![raw]>::peek(parser.cursor().offset(1)) && PointerMutability::peek(parser.cursor().offset(2)) {
             return Ok(ExprRawAddr {
-                attrs: Default::default(),
+                attrs,
                 and: <_ as Parse>::parse(parser)?,
                 raw: <_ as Parse>::parse(parser)?,
                 mutability: <_ as Parse>::parse(parser)?,
-                expr: Box::new(unary_with(parser, attrs, context)?),
+                expr: Box::new(unary_with(parser, Default::default(), context)?),
             }
             .into());
         }
 
         return Ok(ExprReference {
-            attrs: Default::default(),
+            attrs,
             and: <_ as Parse>::parse(parser)?,
             mutability: <_ as Parse>::parse(parser)?,
-            expr: Box::new(unary_with(parser, attrs, context)?),
+            expr: Box::new(unary_with(parser, Default::default(), context)?),
         }
         .into());
     }
 
     if UnOp::peek(parser.cursor()) {
         return Ok(ExprUnary {
-            attrs: Default::default(),
+            attrs,
             op: <_ as Parse>::parse(parser)?,
-            expr: Box::new(unary_with(parser, attrs, context)?),
+            expr: Box::new(unary_with(parser, Default::default(), context)?),
         }
         .into());
     }
@@ -275,7 +277,7 @@ fn unary_with(parser: &Parser, attrs: Attributes, context: ExprContext) -> Resul
 }
 
 fn postfix(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<Expr, ParseError> {
-    let mut expr = primary(parser, attrs, context)?;
+    let mut expr = primary(parser, Default::default(), context)?;
 
     loop {
         if parser.is_delimited(Delim::Paren) {
@@ -357,6 +359,10 @@ fn postfix(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<E
         }
 
         break;
+    }
+
+    if let Some(slot) = expr.attrs_mut() {
+        *slot = attrs;
     }
 
     Ok(expr)
