@@ -303,3 +303,11 @@ fn bodies_hold_their_inner_attributes() {
         assert!(moxy::parse!(source as moxy::ast::File).is_err(), "`{source}`");
     }
 }
+
+#[test]
+fn a_file_that_starts_with_an_inner_attribute_peeks_as_a_file() {
+    use moxy::ast::{Cursor, File, Parse};
+
+    let tokens: moxy::token::TokenStream = "#![a] fn f() {}".parse().unwrap();
+    assert!(<File as Parse>::peek(Cursor::from_tokens(&tokens)));
+}
