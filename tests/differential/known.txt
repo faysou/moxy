@@ -54,7 +54,6 @@ REJECT t: unsafe<'a> &'a A
 # anonymous parameters, and `try!` as a macro
 ACCEPT e: <a::Fn(A) -> B>::c
 ACCEPT e: f::<Fn::(A) -> B>()
-ACCEPT f: fn f(u8) {}
 ACCEPT f: trait A { fn f(&u8, mut x: u8); }
 ACCEPT f: trait A { fn f(u8); }
 ACCEPT t: A<a::b()>
