@@ -47,11 +47,6 @@ REJECT e: match a { const { 1 } => 1 }
 REJECT e: 1e
 REJECT e: a.0x1
 REJECT e: a.0_0
-REJECT e: "a"suffix
-REJECT e: 'a'suffix
-REJECT e: b"a"suffix
-REJECT e: r#"a"#suffix
-REJECT e: 'a'b
 REJECT e: try!(a)
 REJECT e: become f()
 REJECT f: type Symbols<'false> = Table<Symbol<'false>>;
