@@ -235,7 +235,7 @@ fn primary(mut cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
     cursor = if qualified {
         ty::TypePath::skip(cursor)?
     } else {
-        Path::skip(cursor)?
+        Path::skip_expr(cursor)?
     };
 
     if !qualified && <Token![!]>::peek(cursor) && !<Token![!=]>::peek(cursor) {
