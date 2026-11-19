@@ -23,19 +23,33 @@ fn boxed(node: impl Into<Expr>) -> Box<Expr> {
 // field access, or `?` continues it, so `a => { x } (b, c) => y` holds two
 // arms and `if a { b } <T>::f()` two statements.
 pub(crate) fn early(parser: &Parser) -> Result<Box<Expr>, ParseError> {
-    let fork = parser.fork();
-    let attrs = <_ as Parse>::parse(&fork)?;
+    let attrs = <_ as Parse>::parse(parser)?;
 
-    if peek::block_like(fork.cursor()) {
-        let body = primary(&fork, attrs, ExprContext::NORMAL)?;
-
-        if !peek::continues_block_like(fork.cursor()) {
-            parser.seek(&fork);
-            return Ok(body);
-        }
+    if !peek::block_like(parser.cursor()) {
+        return assignment(parser, attrs, ExprContext::NORMAL);
     }
 
-    boxed_expr(parser, ExprContext::NORMAL)
+    let mut body = primary(parser, Attributes::default(), ExprContext::NORMAL)?;
+
+    if !peek::continues_block_like(parser.cursor()) {
+        if let Some(slot) = body.attrs_mut() {
+            *slot = attrs;
+        }
+
+        return Ok(body);
+    }
+
+    // The block-like expression parsed once and the rest of the expression
+    // continues from it, as in `{ x }.len() + 1`
+    let operand = cast_rest(parser, postfix_rest(parser, body, attrs)?)?;
+    let left = binary_rest(parser, ExprContext::NORMAL, operand, Precedence::Or)?;
+    let left = if RangeLimits::peek(parser.cursor()) {
+        range_rest(parser, Default::default(), Some(left), ExprContext::NORMAL)?
+    } else {
+        left
+    };
+
+    assignment_rest(parser, left, ExprContext::NORMAL)
 }
 
 fn optional_expr(parser: &Parser, context: ExprContext) -> Result<Option<Box<Expr>>, ParseError> {
@@ -48,7 +62,11 @@ fn optional_expr(parser: &Parser, context: ExprContext) -> Result<Option<Box<Exp
 
 fn assignment(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<Box<Expr>, ParseError> {
     let left = range(parser, attrs, context)?;
+    assignment_rest(parser, left, context)
+}
 
+// An assignment whose left side has parsed, or the left side alone
+fn assignment_rest(parser: &Parser, left: Box<Expr>, context: ExprContext) -> Result<Box<Expr>, ParseError> {
     if <Token![=]>::peek(parser.cursor()) && !<Token![==]>::peek(parser.cursor()) && !<Token![=>]>::peek(parser.cursor()) {
         return assign(parser, left, context);
     }
@@ -229,8 +247,12 @@ fn binary_rest(parser: &Parser, context: ExprContext, mut left: Box<Expr>, min: 
 }
 
 fn cast(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<Box<Expr>, ParseError> {
-    let mut expr = unary_with(parser, attrs, context)?;
+    let expr = unary_with(parser, attrs, context)?;
+    cast_rest(parser, expr)
+}
 
+// The casts that follow an operand
+fn cast_rest(parser: &Parser, mut expr: Box<Expr>) -> Result<Box<Expr>, ParseError> {
     while <Token![as]>::peek(parser.cursor()) {
         expr = cast_to(parser, expr)?;
     }
@@ -301,8 +323,13 @@ fn unary_op(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<
 }
 
 fn postfix(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<Box<Expr>, ParseError> {
-    let mut expr = primary(parser, Default::default(), context)?;
+    let expr = primary(parser, Default::default(), context)?;
+    postfix_rest(parser, expr, attrs)
+}
 
+// The postfix operators that follow a primary expression, and the outer
+// attributes, which belong to the whole chain
+fn postfix_rest(parser: &Parser, mut expr: Box<Expr>, attrs: Attributes) -> Result<Box<Expr>, ParseError> {
     loop {
         expr = if parser.is_delimited(Delim::Paren) {
             call(parser, expr)?
@@ -355,12 +382,11 @@ fn dot(parser: &Parser, base: Box<Expr>) -> Result<Box<Expr>, ParseError> {
     }
 
     if Ident::peek(parser.cursor().offset(1)) {
+        // Arguments or a turbofish make a method call; a turbofish makes one
+        // even when its arguments are invalid, so their error is reported
         let method = parser.cursor().offset(2);
-        let args = Option::<AngleArguments>::skip(method).unwrap_or(method);
 
-        // A turbofish makes a method call even when its arguments are invalid,
-        // so their error is the one reported
-        if args.is_delimited(Delim::Paren) || <Token![::]>::peek(method) {
+        if method.is_delimited(Delim::Paren) || <Token![::]>::peek(method) {
             return Ok(boxed(ExprMethodCall {
                 attrs: Default::default(),
                 receiver: base,
