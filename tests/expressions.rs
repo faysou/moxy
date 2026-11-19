@@ -838,3 +838,88 @@ fn chain_nodes_serialize_every_step_and_operator() {
         }})
     );
 }
+
+#[test]
+fn postfix_steps_tell_their_kind() {
+    let expression: Expr = moxy::parse!("a(b).c(d).e[f]?.g.await").unwrap();
+    let ops = &expression.as_postfix().unwrap().ops;
+    let kinds: Vec<[bool; 6]> = ops
+        .iter()
+        .map(|op| {
+            [
+                op.is_call(),
+                op.is_method_call(),
+                op.is_field(),
+                op.is_index(),
+                op.is_try(),
+                op.is_await(),
+            ]
+        })
+        .collect();
+    let accessed: Vec<[bool; 6]> = ops
+        .iter()
+        .map(|op| {
+            [
+                op.as_call().is_some(),
+                op.as_method_call().is_some(),
+                op.as_field().is_some(),
+                op.as_index().is_some(),
+                op.as_try().is_some(),
+                op.as_await().is_some(),
+            ]
+        })
+        .collect();
+    let expected: Vec<[bool; 6]> = [0, 1, 2, 3, 4, 2, 5]
+        .iter()
+        .map(|&kind| std::array::from_fn(|index| index == kind))
+        .collect();
+    assert_eq!(kinds, expected);
+    assert_eq!(accessed, expected);
+    assert_eq!(ops[1].as_method_call().unwrap().method.text(), "c");
+}
+
+#[test]
+fn visitors_see_each_chain_once_and_each_step_through_its_own_callback() {
+    use moxy::ast::{ElseIf, ExprBinaryChain, ExprCastChain, ExprIfChain, PostfixMethodCall, UsePathChain, Visit};
+
+    #[derive(Default)]
+    struct Count([usize; 6]);
+
+    impl<'ast> Visit<'ast> for Count {
+        fn visit_expr_binary_chain(&mut self, node: &'ast ExprBinaryChain) {
+            self.0[0] += 1;
+            moxy::ast::walk_expr_binary_chain(self, node);
+        }
+        fn visit_expr_cast_chain(&mut self, node: &'ast ExprCastChain) {
+            self.0[1] += 1;
+            moxy::ast::walk_expr_cast_chain(self, node);
+        }
+        fn visit_expr_if_chain(&mut self, node: &'ast ExprIfChain) {
+            self.0[2] += 1;
+            moxy::ast::walk_expr_if_chain(self, node);
+        }
+        fn visit_else_if(&mut self, node: &'ast ElseIf) {
+            self.0[3] += 1;
+            moxy::ast::walk_else_if(self, node);
+        }
+        fn visit_postfix_method_call(&mut self, node: &'ast PostfixMethodCall) {
+            self.0[4] += 1;
+            moxy::ast::walk_postfix_method_call(self, node);
+        }
+        fn visit_use_path_chain(&mut self, node: &'ast UsePathChain) {
+            self.0[5] += 1;
+            moxy::ast::walk_use_path_chain(self, node);
+        }
+    }
+
+    let expression: Expr = moxy::parse!("if a + b + c * d {} else if x.f().g() as u8 as u16 {} else if y {}").unwrap();
+    let mut count = Count::default();
+    count.visit_expr(&expression);
+    // `a + b + c * d` is two chains, `+` and `*`
+    assert_eq!(count.0, [2, 1, 1, 2, 2, 0]);
+
+    let item: moxy::ast::Item = moxy::parse!("use a::b::{c::d, e};").unwrap();
+    let mut count = Count::default();
+    count.visit_item(&item);
+    assert_eq!(count.0, [0, 0, 0, 0, 0, 2]);
+}

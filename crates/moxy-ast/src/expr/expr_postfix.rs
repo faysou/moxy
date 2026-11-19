@@ -62,6 +62,56 @@ pub enum Postfix {
     Await(PostfixAwait),
 }
 
+impl Postfix {
+    pub fn is_call(&self) -> bool {
+        matches!(self, Self::Call(_))
+    }
+
+    pub fn is_method_call(&self) -> bool {
+        matches!(self, Self::MethodCall(_))
+    }
+
+    pub fn is_field(&self) -> bool {
+        matches!(self, Self::Field(_))
+    }
+
+    pub fn is_index(&self) -> bool {
+        matches!(self, Self::Index(_))
+    }
+
+    pub fn is_try(&self) -> bool {
+        matches!(self, Self::Try(_))
+    }
+
+    pub fn is_await(&self) -> bool {
+        matches!(self, Self::Await(_))
+    }
+
+    pub fn as_call(&self) -> Option<&PostfixCall> {
+        if let Self::Call(v) = self { Some(v) } else { None }
+    }
+
+    pub fn as_method_call(&self) -> Option<&PostfixMethodCall> {
+        if let Self::MethodCall(v) = self { Some(v) } else { None }
+    }
+
+    pub fn as_field(&self) -> Option<&PostfixField> {
+        if let Self::Field(v) = self { Some(v) } else { None }
+    }
+
+    pub fn as_index(&self) -> Option<&PostfixIndex> {
+        if let Self::Index(v) = self { Some(v) } else { None }
+    }
+
+    pub fn as_try(&self) -> Option<&PostfixTry> {
+        if let Self::Try(v) = self { Some(v) } else { None }
+    }
+
+    pub fn as_await(&self) -> Option<&PostfixAwait> {
+        if let Self::Await(v) = self { Some(v) } else { None }
+    }
+}
+
 impl Spanner for Postfix {
     fn span(&self) -> Span {
         self.to_token_stream().span()
