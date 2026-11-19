@@ -18,7 +18,10 @@ impl Parse for ParenArguments {
         cursor.is_delimited(Delim::Paren)
     }
 
+    // Parenthesized arguments and their return type take another level of
+    // stack, as in `Fn() -> Fn() -> T`
     fn parse(parser: &Parser) -> Result<Self, ParseError> {
+        let _weight = moxy_token::Depth::enter_by(1).ok_or_else(|| ParseError::too_deep(parser.span()))?;
         let colon2 = <_ as Parse>::parse(parser)?;
         let params = Delimited::parse_paren_with(parser, List::parse_all)?;
         let output = ReturnType::parse_without_plus(parser)?;
