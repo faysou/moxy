@@ -46,12 +46,7 @@ impl Parse for GenericArgument {
             return true;
         }
 
-        let is_const = match cursor.curr() {
-            Some(TokenTree::Literal(_)) => true,
-            Some(TokenTree::Group(group)) => group.delim.is_brace(),
-            Some(TokenTree::Punct(Punct::Minus(_) | Punct::Not(_))) => true,
-            _ => false,
-        };
+        let is_const = starts_const(cursor);
 
         if is_const {
             return true;
@@ -74,10 +69,7 @@ impl Parse for GenericArgument {
         }
 
         // Literal or block expression const argument.
-        let is_const = token.is_literal()
-            || token.as_group().map(|g| g.delim.is_brace()).unwrap_or(false)
-            || token.is_punct_minus()
-            || token.is_punct_not();
+        let is_const = starts_const(parser.cursor());
 
         if is_const {
             return Ok(Self::Const(expr::parse::unary(parser, Default::default())?));
@@ -97,12 +89,7 @@ impl Parse for GenericArgument {
             return Lifetime::skip(cursor);
         }
 
-        let is_const = match cursor.curr() {
-            Some(TokenTree::Literal(_)) => true,
-            Some(TokenTree::Group(group)) => group.delim.is_brace(),
-            Some(TokenTree::Punct(Punct::Minus(_) | Punct::Not(_))) => true,
-            _ => false,
-        };
+        let is_const = starts_const(cursor);
 
         if is_const {
             return expr::skip::pattern_bound(cursor);
@@ -132,12 +119,7 @@ impl Parse for GenericArgument {
             if <Token![=]>::peek(cursor) {
                 cursor = <Token![=]>::skip(cursor)?;
 
-                let is_const = match cursor.curr() {
-                    Some(TokenTree::Literal(_)) => true,
-                    Some(TokenTree::Group(group)) => group.delim.is_brace(),
-                    Some(TokenTree::Punct(Punct::Minus(_) | Punct::Not(_))) => true,
-                    _ => false,
-                };
+                let is_const = starts_const(cursor);
 
                 return if is_const {
                     expr::skip::pattern_bound(cursor)
@@ -203,13 +185,7 @@ impl GenericArgument {
     // An associated type or constant: `Item = u8`, `N = 3`
     fn parse_assoc(parser: &Parser, ident: Ident, generics: Option<AngleArguments>) -> Result<Self, ParseError> {
         let eq_punct = <_ as Parse>::parse(parser)?;
-        let is_const = match parser.cursor().curr() {
-            Some(TokenTree::Literal(_)) => true,
-            Some(TokenTree::Group(g)) if g.delim.is_brace() => true,
-            Some(TokenTree::Punct(Punct::Minus(_))) => true,
-            Some(TokenTree::Punct(Punct::Not(_))) => true,
-            _ => false,
-        };
+        let is_const = starts_const(parser.cursor());
 
         if is_const {
             let expr = expr::parse::unary(parser, Default::default())?;
@@ -264,5 +240,15 @@ impl ToTokens for GenericArgument {
             Self::AssocConst(v) => v.to_tokens(t),
             Self::Constraint(v) => v.to_tokens(t),
         }
+    }
+}
+
+// Whether a const argument starts here: a literal, a block, or a negated
+// literal. A `!` starts the never type, as in `Result<T, !>`.
+fn starts_const(cursor: Cursor<'_>) -> bool {
+    match cursor.curr() {
+        Some(TokenTree::Literal(_) | TokenTree::Punct(Punct::Minus(_))) => true,
+        Some(TokenTree::Group(group)) => group.delim.is_brace(),
+        _ => false,
     }
 }

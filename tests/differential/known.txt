@@ -59,37 +59,13 @@ REJECT e: b"a"suffix
 REJECT e: r#"a"#suffix
 REJECT e: 'a'b
 REJECT e: try!(a)
-REJECT e: a::<>
-REJECT e: a::<>::b
 REJECT e: become f()
-REJECT e: f::<!>()
-REJECT e: a.b::<>()
-REJECT e: a::<>()
-REJECT f: fn min<T:>(v1: T) -> T {}
-REJECT f: fn f<T>() where T: {}
-REJECT f: fn f<T>() where Self:, T: {}
-REJECT f: fn f() where T: ;
-REJECT f: impl<T: Sized<>> From<T> for OsString {}
-REJECT f: impl<> Bound<> {}
-REJECT f: impl<> X {}
 REJECT f: impl ExitStatusError { fn code() -> Option<u8> { NonZeroI32::new(self.0.0) } }
-REJECT f: impl DestroyedState for ! { fn register_dtor<T>(_: &Storage<T, !>) {} }
 REJECT f: type Symbols<'false> = Table<Symbol<'false>>;
 REJECT f: type B = unsafe extern "efiapi" fn(_: Handle, _: ...) -> Status;
 REJECT f: type B = fn(_: ...) -> Status;
-REJECT f: fn f() { [MaybeUninit::<!>::uninit(); 0].transpose() }
-REJECT f: fn f() { Ok::<B, !>(f(b, item)) }
-REJECT f: fn f() -> Result<!, io::Error> {}
-REJECT f: fn f() -> Result<isize, !> { Ok(666) }
-REJECT f: type A = Result<T, !>;
-REJECT f: type A = Option<!>;
-REJECT f: type A = B<!>;
-REJECT f: type A = B<!, C>;
-REJECT f: type A = B<C, !>;
 REJECT f: fn f() { self.0.0 }
 REJECT f: fn f() { NonZeroI32::new(self.0.0) }
-REJECT f: impl Command { unsafe fn do_exec(&mut self, stdio: ChildPipes, maybe_envp: Option<&CStringArray>) -> Result<!, io::Error> {} }
-REJECT f: fn f() where 'a: 'b, 'b: {}
 REJECT f: impl<T> X<T> { type Item; #[inline] fn next() -> Option<T> {} fn advance_by(self, n: usize) -> Result<(), NonZero<usize>> { rem = if len < n {} else {} } }
 REJECT b: { try!(x) }
 REJECT p: S { box a }
@@ -98,11 +74,7 @@ REJECT p: box x
 REJECT p: box 1..=2
 REJECT p: mut self
 REJECT t: A<B + C>
-REJECT t: A<!>
-REJECT t: A<>
-REJECT t: A::<>
 REJECT t: fn(a: A, va: ...)
-REJECT t: for<> fn()
 REJECT t: impl const A
 REJECT t: 'a + A
 REJECT t: unsafe<'a> &'a A
@@ -115,13 +87,10 @@ REJECT f: trait A { pub fn f(); }
 REJECT f: const trait A {}
 REJECT f: trait A<T> = B<T> where T: C;
 REJECT f: trait A = ;
-REJECT f: struct S<T: >(T);
-REJECT f: struct S<>;
 REJECT f: struct S { a: u8 = 1 }
 REJECT f: static X = 1;
 REJECT f: unsafe extern "C" fn f(a: u8, mut args: ...) {}
 REJECT f: fn f(a: u8, _: ...) {}
-REJECT f: fn f<>() {}
 REJECT f: extern "C" { #![a] }
 REJECT f: extern "C" { type T: A; }
 REJECT f: extern "C" { fn f() {} }
@@ -157,13 +126,6 @@ REJECT i: use ::serde;
 REJECT i: use ::core as _core;
 REJECT i: mod m { #![allow(x)] }
 REJECT i: fn f() { #![allow(x)] }
-REJECT i: struct S<T: >(T);
-REJECT i: fn f<T>() where T: {}
-REJECT t: Vec<!>
-REJECT t: Result<(), !>
-REJECT t: Vec<>
-REJECT e: Vec::<>::new()
-REJECT b: { x.collect::<>() }
 
 # Input syn rejects that moxy accepts
 ACCEPT e: a..b = c
@@ -254,7 +216,6 @@ ACCEPT t: FnOnce(&mut A) -> &B
 ACCEPT t: Fn(A) -> Fn(B) -> C
 ACCEPT t: r#Self
 ACCEPT t: [A;]
-ACCEPT t: A<!0>
 ACCEPT t: F::<A>::Fn::(A) -> B
 ACCEPT f: impl A { type T where Self: Sized = u8; }
 ACCEPT f: trait A { fn f(u8); }
@@ -289,3 +250,13 @@ ACCEPT t: FnMut(&mut A) -> B<C>
 ACCEPT t: Box<Fn(A) -> B>
 ACCEPT t: A<a::b()>
 ACCEPT e: f::<Fn::(A) -> B>()
+
+# Intentional: moxy emits the empty `<>`, `:`, and `where` that the source has,
+# which syn drops
+TOKENS f: fn min<T:>(v1: T) -> T {}
+TOKENS f: impl<> Bound<> {}
+TOKENS f: impl<> X {}
+TOKENS f: struct S<T: >(T);
+TOKENS f: struct S<>;
+TOKENS f: fn f<>() {}
+TOKENS i: struct S<T: >(T);

@@ -81,3 +81,34 @@ fn const_generic_defaults_end_before_the_closing_angle_bracket() {
         assert_eq!(item.to_token_stream().to_string(), lexed.to_string());
     }
 }
+
+#[test]
+fn generic_lists_and_bounds_may_be_empty() {
+    for source in [
+        "impl<> X {}",
+        "struct S<>;",
+        "fn f<T:>() where T: {}",
+        "fn f<T>() where Self:, T: {}",
+        "fn f() where 'a: 'b, 'b: {}",
+        "struct S<T: >(T);",
+        "impl<T: Sized<>> From<T> for OsString {}",
+        "type A = for<> fn();",
+        "type A = Result<T, !>;",
+        "type A = B<!, C>;",
+        "fn f() { Vec::<>::new(); x.collect::<>(); Ok::<B, !>(b) }",
+    ] {
+        let item: Item = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        let lexed: moxy::token::TokenStream = source.parse().unwrap();
+        assert_eq!(item.to_token_stream().to_string(), lexed.to_string());
+    }
+
+    let ty: moxy::ast::Type = moxy::parse!("Result<T, !>").unwrap();
+    let path = ty.as_path().unwrap();
+    let moxy::ast::PathArguments::AngleBracketed(args) = &path.path.iter().next().unwrap().args else {
+        panic!("expected angle arguments");
+    };
+    assert!(matches!(
+        args.args.iter().nth(1),
+        Some(moxy::ast::GenericArgument::Type(moxy::ast::Type::Never(_)))
+    ));
+}
