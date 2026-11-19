@@ -77,8 +77,6 @@ REJECT f: impl DestroyedState for ! { fn register_dtor<T>(_: &Storage<T, !>) {} 
 REJECT f: type Symbols<'false> = Table<Symbol<'false>>;
 REJECT f: type B = unsafe extern "efiapi" fn(_: Handle, _: ...) -> Status;
 REJECT f: type B = fn(_: ...) -> Status;
-REJECT f: struct SymbolId<const DYNAMIC: bool = false>(usize);
-REJECT f: struct S<const N: usize = { M + 1 }>(u8) where T: U;
 REJECT f: mod helper { type LazyResolve = impl (FnOnce() -> Capture) + Send; }
 REJECT f: type A = impl (FnOnce() -> Capture) + Send + Sync + UnwindSafe;
 REJECT f: type A = impl (B) + C;
@@ -141,20 +139,6 @@ REJECT t: Box<dyn AsyncFn() -> u8>
 REJECT i: fn f<F: AsyncFn(u8) -> u8>(f: F) {}
 REJECT i: fn f<F>() where F: AsyncFnOnce() {}
 REJECT i: fn f<F: MyTrait(u8)>() {}
-REJECT i: struct S<const N: usize = 3>(u8);
-REJECT i: struct S<const N: usize = 3>(pub u8);
-REJECT i: struct S<const B: bool = false>(usize);
-REJECT i: struct S<T = u8, const B: usize = 3>(T);
-REJECT i: struct S<const B: usize = { 3 }>(u8);
-REJECT i: struct S<const B: usize = N>(u8);
-REJECT i: struct S<const B: usize = -1>(u8);
-REJECT i: trait T<const N: usize = 3>: U {}
-REJECT i: trait T<const N: usize = 3> = U;
-REJECT i: type T<const N: usize = 3> = U;
-REJECT i: type T<const N: usize = 3>: U;
-REJECT i: impl<const N: usize = 3> S<N> {}
-REJECT i: fn f<const N: usize = 3>() {}
-REJECT i: fn f<const N: usize = 3>(a: u8) {}
 REJECT i: impl<F: FnOnce<A> + ?Sized> X for Y {}
 REJECT f: const X: u8 = 1 where T: U;
 REJECT f: struct S(pub (u8, u8));
@@ -225,7 +209,6 @@ REJECT i: mod m { #![allow(x)] }
 REJECT i: fn f() { #![allow(x)] }
 REJECT i: struct S<T: >(T);
 REJECT i: fn f<T>() where T: {}
-REJECT i: type A<const N: usize = 3> = [u8; N];
 REJECT t: Box<dyn (Fn() -> u8) + Send>
 REJECT t: &(dyn (A) + B)
 REJECT t: Vec<!>

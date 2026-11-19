@@ -60,3 +60,24 @@ fn closed_lists_accept_a_trailing_comma() {
     let error = moxy::parse!("use a::{b c};" as Item).err().unwrap();
     assert_eq!(error.message(), "expected punctuation");
 }
+
+#[test]
+fn const_generic_defaults_end_before_the_closing_angle_bracket() {
+    for source in [
+        "struct S<const N: usize = 3>(u8);",
+        "struct S<const B: bool = false>(usize);",
+        "struct S<T = u8, const B: usize = 3>(T);",
+        "struct S<const B: usize = { 3 }>(u8);",
+        "struct S<const B: usize = N>(u8);",
+        "struct S<const B: usize = -1>(u8);",
+        "trait T<const N: usize = 3>: U {}",
+        "type T<const N: usize = 3> = U;",
+        "impl<const N: usize = 3> S<N> {}",
+        "fn f<const N: usize = 3>(a: u8) {}",
+        "struct S<const N: usize = { M + 1 }>(u8) where T: U;",
+    ] {
+        let item: moxy::ast::Item = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        let lexed: moxy::token::TokenStream = source.parse().unwrap();
+        assert_eq!(item.to_token_stream().to_string(), lexed.to_string());
+    }
+}
