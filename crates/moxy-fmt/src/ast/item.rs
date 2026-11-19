@@ -617,11 +617,13 @@ impl Format for ItemTypeAlias {
             self.bounds.format(f)?;
         }
 
-        self.where_clause.format(f)?;
-
-        if let Some(ty) = &self.ty {
-            f.text(" = ")?;
-            ty.format(f)?;
+        match &self.ty {
+            Some(ty) => {
+                f.text(" = ")?;
+                ty.format(f)?;
+                self.where_clause.format(f)?;
+            }
+            None => self.where_clause.format(f)?,
         }
 
         f.text(";")

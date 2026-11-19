@@ -99,7 +99,10 @@ REJECT f: static X = 1;
 REJECT f: trait A = ;
 REJECT f: trait A { pub fn f(); }
 REJECT f: trait A<T> = B<T> where T: C;
-REJECT f: type T<U> = Vec<U> where U: A;
+
+# Intentional: a type alias's where clause before `=`, the older place, emits
+# after the type, where Rust prefers it, as for associated types
+TOKENS f: type T<U> where U: A = Vec<U>;
 
 # Intentional: moxy keeps tokens as written where syn normalizes them: the
 # obsolete `...` range, a leading zero in a tuple index, generic parameter order
