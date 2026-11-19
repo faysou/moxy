@@ -243,8 +243,12 @@ impl From<TypeBareFn> for Type {
 
 impl Parse for Type {
     fn peek(cursor: Cursor<'_>) -> bool {
+        // A weak keyword such as `raw` or `default` can name a type or begin its path
+        if Ident::peek(cursor) {
+            return true;
+        }
+
         match cursor.curr() {
-            Some(TokenTree::Ident(_)) => true,
             Some(TokenTree::Group(g)) => matches!(g.delim, Delim::Paren | Delim::Bracket | Delim::None),
             Some(TokenTree::Keyword(k)) => matches!(
                 k,
