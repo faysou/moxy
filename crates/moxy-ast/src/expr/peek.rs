@@ -4,7 +4,13 @@ use super::*;
 
 // Whether an expression can start here. An optional operand, as of `return`
 // or `break`, is absent otherwise: `match a { _ => return, b => b }`, `return.x`
-pub(super) fn expr(cursor: Cursor<'_>, _context: ExprContext) -> bool {
+pub(super) fn expr(cursor: Cursor<'_>, context: ExprContext) -> bool {
+    // Where a struct literal is not allowed, a `{` starts the body instead:
+    // `if break {}` breaks without a value
+    if context.is_end(cursor) {
+        return false;
+    }
+
     let cursor = Attributes::skip(cursor).unwrap_or(cursor);
 
     match cursor.curr() {
