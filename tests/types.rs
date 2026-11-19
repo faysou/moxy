@@ -229,3 +229,34 @@ fn any_path_segment_takes_angle_or_parenthesized_arguments() {
     let attr = &item.as_struct().unwrap().attrs[0];
     assert!(attr.path.is_ident("derive"));
 }
+
+#[test]
+fn trait_bounds_may_stand_in_parentheses() {
+    for (source, bounds) in [
+        ("Box<dyn (Fn() -> u8) + Send>", 2),
+        ("&(dyn (A) + B)", 2),
+        ("dyn (A)", 1),
+        ("impl (A) + B", 2),
+        ("impl ?Sized + (B)", 2),
+        ("dyn (for<'a> A<'a>) + B", 2),
+    ] {
+        let ty: Type = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        let lexed: moxy::token::TokenStream = source.parse().unwrap();
+        assert_eq!(ty.to_token_stream().to_string(), lexed.to_string());
+        assert_eq!(
+            ty.to_token_stream().to_string().matches('+').count() + 1,
+            bounds,
+            "`{source}`"
+        );
+    }
+
+    let ty: Type = moxy::parse!("dyn (Fn() -> u8) + Send").unwrap();
+    let Type::TraitObject(object) = &ty else {
+        panic!("expected a trait object");
+    };
+    let moxy::ast::TypeBound::Trait(first) = object.bounds.first().unwrap() else {
+        panic!("expected a trait bound");
+    };
+    assert!(first.paren.is_some());
+    assert_eq!(moxy::fmt!(&ty).unwrap(), "dyn (Fn() -> u8) + Send");
+}

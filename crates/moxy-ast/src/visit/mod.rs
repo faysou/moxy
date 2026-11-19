@@ -1507,6 +1507,7 @@ define_visit! {
         visit: visit_trait_bound, visit_mut: visit_trait_bound_mut,
         walk: walk_trait_bound, walk_mut: walk_trait_bound_mut,
         fields {
+            paren: skip,
             polarity: skip,
             lifetimes: opt => visit_bound_lifetimes / visit_bound_lifetimes_mut,
             modifier: leaf,
