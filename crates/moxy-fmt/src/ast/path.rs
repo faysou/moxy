@@ -48,6 +48,10 @@ pub(crate) fn format_qualified_path(qself: Option<&QSelf>, path: &Path, f: &mut 
     if qself.as_keyword.is_some() {
         f.text(" as ")?;
 
+        if path.colon().is_some() {
+            f.text("::")?;
+        }
+
         for (index, segment) in segments[..qself.position].iter().enumerate() {
             if index > 0 {
                 f.text("::")?;
