@@ -276,3 +276,23 @@ fn impl_and_dyn_take_one_bound_where_plus_does_not_continue_a_type() {
     let ty: Type = moxy::parse!("&(dyn A + B)").unwrap();
     assert_eq!(ty.to_token_stream().to_string(), "& (dyn A + B)");
 }
+
+#[test]
+fn nested_function_sugar_in_generic_arguments_parses_in_linear_time() {
+    // Telling a bare trait object from a path skipped each bound before
+    // parsing it, which doubled the work per level
+    let depth = 40;
+    let closed = format!("{}u8{}", "A<B() -> ".repeat(depth), ">".repeat(depth));
+    let unclosed = "A<B() -> ".repeat(depth);
+    let start = std::time::Instant::now();
+    assert!(moxy::parse!(closed as Type).is_ok());
+    assert!(moxy::parse!(unclosed as Type).is_err());
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(5),
+        "took {:?}",
+        start.elapsed()
+    );
+
+    let ty: Type = moxy::parse!("Box<A + Send>").unwrap();
+    assert_eq!(ty.to_token_stream().to_string(), "Box < A + Send >");
+}
