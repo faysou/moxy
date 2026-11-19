@@ -112,6 +112,7 @@ fn scan<'a>(c: Cursor<'a>, open: &str) -> Result<Cursor<'a>, LexError> {
     let c = match c.first() {
         None | Some('\'') => return start.error().into(),
         Some('\\') => escape(c.advance())?,
+        Some(ch) if !ch.is_ascii() => return c.error().message("non-ASCII character in byte literal").into(),
         Some(ch) => c.advance_by(ch.len_utf8()),
     };
 

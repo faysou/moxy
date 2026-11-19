@@ -95,16 +95,8 @@ ACCEPT e: static || 1
 ACCEPT e: static move || 1
 ACCEPT e: |x: u8| -> u8 x
 ACCEPT e: #![a] x
-ACCEPT e: '\x80'
-ACCEPT e: '\xff'
 ACCEPT e: b'\u{1}'
-ACCEPT e: b'é'
-ACCEPT e: "\x80"
 ACCEPT e: c"\0"
-ACCEPT e: r#self
-ACCEPT e: r#crate
-ACCEPT e: r#_
-ACCEPT e: 1 /* unterminated
 ACCEPT e: a..=
 ACCEPT e: ..=
 ACCEPT e: <a::Fn(A) -> B>::c
@@ -133,7 +125,6 @@ ACCEPT t: Fn(A) -> impl C
 ACCEPT t: Fn::(A) -> B
 ACCEPT t: FnOnce(&mut A) -> &B
 ACCEPT t: Fn(A) -> Fn(B) -> C
-ACCEPT t: r#Self
 ACCEPT t: F::<A>::Fn::(A) -> B
 ACCEPT f: impl A { type T where Self: Sized = u8; }
 ACCEPT f: trait A { fn f(u8); }

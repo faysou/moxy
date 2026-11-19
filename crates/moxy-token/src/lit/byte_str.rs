@@ -76,7 +76,12 @@ impl ToTokens for LitByteStr {
 
 impl Scan for LitByteStr {
     fn scan(cursor: Cursor<'_>) -> Result<(Cursor<'_>, Self), LexError> {
-        let end = scan_cooked(cursor, "b\"").or_else(|_| scan_raw(cursor, "br"))?;
+        // A cooked literal reports its own error, such as an invalid escape
+        let end = if cursor.starts_with("b\"") {
+            scan_cooked(cursor, "b\"")?
+        } else {
+            scan_raw(cursor, "br")?
+        };
         let len = end.offset() as usize - cursor.offset() as usize;
         let repr = &cursor.rest()[..len];
         let span = cursor.span_to(&end);
@@ -113,6 +118,7 @@ fn scan_cooked<'a>(c: Cursor<'a>, open: &str) -> Result<Cursor<'a>, LexError> {
             None => return c.error().into(),
             Some('"') => return Ok(c.advance()),
             Some('\\') => c = escape(c.advance())?,
+            Some(ch) if !ch.is_ascii() => return c.error().message("non-ASCII character in byte string literal").into(),
             Some(ch) => c = c.advance_by(ch.len_utf8()),
         }
     }

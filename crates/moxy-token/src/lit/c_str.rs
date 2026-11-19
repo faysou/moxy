@@ -76,7 +76,12 @@ impl ToTokens for LitCStr {
 
 impl Scan for LitCStr {
     fn scan(cursor: Cursor<'_>) -> Result<(Cursor<'_>, Self), LexError> {
-        let end = scan_cooked(cursor, "c\"").or_else(|_| scan_raw(cursor, "cr"))?;
+        // A cooked literal reports its own error, such as an invalid escape
+        let end = if cursor.starts_with("c\"") {
+            scan_cooked(cursor, "c\"")?
+        } else {
+            scan_raw(cursor, "cr")?
+        };
         let len = end.offset() as usize - cursor.offset() as usize;
         let repr = &cursor.rest()[..len];
         let span = cursor.span_to(&end);
