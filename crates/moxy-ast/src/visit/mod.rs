@@ -1146,6 +1146,7 @@ define_visit! {
         fields {
             attrs => visit_attributes / visit_attributes_mut,
             vis => visit_visibility / visit_visibility_mut,
+            defaultness: leaf,
             sig => visit_signature / visit_signature_mut,
             body: opt => visit_stmt_block / visit_stmt_block_mut,
             semi: skip,
@@ -1163,6 +1164,8 @@ define_visit! {
             ident: skip,
             colon: skip,
             ty => visit_type / visit_type_mut,
+            eq: skip,
+            expr: opt => visit_expr / visit_expr_mut,
             semi: skip,
         }
     }
@@ -1172,6 +1175,7 @@ define_visit! {
         fields {
             attrs => visit_attributes / visit_attributes_mut,
             vis => visit_visibility / visit_visibility_mut,
+            defaultness: leaf,
             type_keyword: skip,
             ident: skip,
             generics => visit_generics / visit_generics_mut,
@@ -1226,7 +1230,7 @@ define_visit! {
             colon: skip,
             ty => visit_type / visit_type_mut,
             eq: skip,
-            expr => visit_expr / visit_expr_mut,
+            expr: opt => visit_expr / visit_expr_mut,
             semi: skip,
         }
     }
@@ -1240,6 +1244,8 @@ define_visit! {
             type_keyword: skip,
             ident: skip,
             generics => visit_generics / visit_generics_mut,
+            colon: skip,
+            bounds: punct => visit_type_bound / visit_type_bound_mut,
             eq: skip,
             ty: opt => visit_type / visit_type_mut,
             where_clause_after: opt => visit_where_clause / visit_where_clause_mut,
@@ -1271,6 +1277,7 @@ define_visit! {
         fields {
             attrs => visit_attributes / visit_attributes_mut,
             vis => visit_visibility / visit_visibility_mut,
+            defaultness: leaf,
             sig => visit_signature / visit_signature_mut,
             body: opt => visit_stmt_block / visit_stmt_block_mut,
             semi: skip,
@@ -1282,6 +1289,7 @@ define_visit! {
         fields {
             attrs => visit_attributes / visit_attributes_mut,
             vis => visit_visibility / visit_visibility_mut,
+            defaultness: leaf,
             const_keyword: skip,
             ident: skip,
             generics => visit_generics / visit_generics_mut,
@@ -1297,6 +1305,7 @@ define_visit! {
         fields {
             attrs => visit_attributes / visit_attributes_mut,
             vis => visit_visibility / visit_visibility_mut,
+            defaultness: leaf,
             type_keyword: skip,
             ident: skip,
             generics => visit_generics / visit_generics_mut,
