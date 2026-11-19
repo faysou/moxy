@@ -118,10 +118,6 @@ REJECT f: use a::crate;
 REJECT e: 1e
 REJECT f: fn f() { 1f16; 1.0f128; 1f16; 2b; 1px; 1em; 0x1p3; 1_; 1__; }
 
-# Intentional: a type alias's where clause before `=`, the older place, emits
-# after the type, where Rust prefers it, as for associated types
-TOKENS f: type T<U> where U: A = Vec<U>;
-
 # Intentional: moxy keeps tokens as written where syn normalizes them: the
 # obsolete `...` range, the text of a tuple index, generic parameter order
 TOKENS t: A<T, 'a>
