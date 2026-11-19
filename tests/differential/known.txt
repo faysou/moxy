@@ -63,6 +63,8 @@ ACCEPT f: use Self::A;
 ACCEPT f: use a::Self;
 ACCEPT f: use a::{::b};
 ACCEPT p: -'a'
+ACCEPT t: dyn
+ACCEPT t: impl
 ACCEPT p: [1.., 2]
 ACCEPT p: [1..]
 TREE f: trait A { pub fn f(); }

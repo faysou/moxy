@@ -33,14 +33,19 @@ impl Parse for TypeTraitObject {
     }
 
     fn parse(parser: &Parser) -> Result<Self, ParseError> {
-        let dyn_token = <_ as Parse>::parse(parser)?;
-        let bounds = crate::TypeBound::parse_bounds(parser)?;
+        let dyn_token: Option<Token![dyn]> = <_ as Parse>::parse(parser)?;
+        let bounds = match dyn_token {
+            Some(_) => crate::TypeBound::parse_bounds_of_keyword(parser)?,
+            None => crate::TypeBound::parse_bounds(parser)?,
+        };
         Ok(Self { dyn_token, bounds })
     }
 
     fn skip(cursor: Cursor<'_>) -> Option<Cursor<'_>> {
-        let cursor = Option::<Token![dyn]>::skip(cursor)?;
-        TypeBound::skip_bounds(cursor)
+        match <Token![dyn]>::skip(cursor) {
+            Some(cursor) => TypeBound::skip_bounds_of_keyword(cursor),
+            None => TypeBound::skip_bounds(cursor),
+        }
     }
 }
 

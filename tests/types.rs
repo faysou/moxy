@@ -330,3 +330,21 @@ fn a_bare_trait_object_may_start_with_a_lifetime() {
     assert_eq!(ty.to_token_stream().to_string(), "A < 'a , T >");
     assert!(moxy::parse!("'a" as Type).is_err());
 }
+
+#[test]
+fn impl_and_dyn_without_bounds_parse_as_rustc_parses_them() {
+    use moxy::token::ToTokenStream;
+
+    // rustc's parser accepts them and the compiler rejects them later
+    for source in ["fn f(_: impl) {}", "fn f(_: &dyn) {}", "fn f(_: &impl, _: Box<dyn>) {}"] {
+        let item: moxy::ast::Item = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        let lexed: moxy::token::TokenStream = source.parse().unwrap();
+        assert_eq!(item.to_token_stream().to_string(), lexed.to_string());
+        let formatted = moxy::fmt!(&item).unwrap();
+        let again: moxy::ast::Item = moxy::parse!(formatted).unwrap_or_else(|error| panic!("`{formatted}`: {error}"));
+        assert_eq!(again.to_token_stream().to_string(), lexed.to_string(), "`{formatted}`");
+    }
+
+    let ty: Type = moxy::parse!("impl").unwrap();
+    assert!(ty.as_impl_trait().unwrap().bounds.is_empty());
+}

@@ -256,14 +256,22 @@ impl Type {
         if <Token![impl]>::peek(parser.cursor()) {
             let impl_keyword = <_ as Parse>::parse(parser)?;
             let mut bounds = List::new();
-            bounds.push_value(<_ as Parse>::parse(parser)?);
+
+            if TypeBound::peek(parser.cursor()) {
+                bounds.push_value(<_ as Parse>::parse(parser)?);
+            }
+
             return Ok(Self::ImplTrait(TypeImplTrait { impl_keyword, bounds }));
         }
 
         if <Token![dyn]>::peek(parser.cursor()) {
             let dyn_token = <_ as Parse>::parse(parser)?;
             let mut bounds = List::new();
-            bounds.push_value(<_ as Parse>::parse(parser)?);
+
+            if TypeBound::peek(parser.cursor()) {
+                bounds.push_value(<_ as Parse>::parse(parser)?);
+            }
+
             return Ok(Self::TraitObject(TypeTraitObject { dyn_token, bounds }));
         }
 
@@ -278,7 +286,12 @@ impl Type {
         }
 
         if <Token![impl]>::peek(cursor) || <Token![dyn]>::peek(cursor) {
-            return TypeBound::skip(cursor.offset(1));
+            let cursor = cursor.offset(1);
+            return if TypeBound::peek(cursor) {
+                TypeBound::skip(cursor)
+            } else {
+                Some(cursor)
+            };
         }
 
         <Self as Parse>::skip(cursor)
