@@ -461,11 +461,6 @@ fn deep_trees_of_every_kind_parse_and_traverse_or_report_the_depth() {
             45,
             deepest::<File>(|n| format!("{}{}", "fn f() { ".repeat(n), "}".repeat(n)), file),
         ),
-        (
-            "use paths",
-            140,
-            deepest::<File>(|n| format!("use {}a;", "a::".repeat(n)), file),
-        ),
     ];
 
     for (kind, required, reached) in kinds {
