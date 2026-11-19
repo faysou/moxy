@@ -184,3 +184,23 @@ fn empty_statements_format_as_a_semicolon() {
         assert_eq!(moxy::fmt!(&item).unwrap(), formatted, "`{source}`");
     }
 }
+
+#[test]
+fn bound_lists_take_a_trailing_separator() {
+    for source in [
+        "fn g<'a: 'a +>() {}",
+        "fn f(x: impl Iterator<Item: Clone +>) {}",
+        "type F = Box<dyn for<'b,> Fn(&'b u8)>;",
+        "fn f<'a>() -> impl Sized + use<'a,> {}",
+        "type T = A<B: >;",
+        "fn f() where 'a: 'b + {}",
+        "trait A { type T: B +; }",
+    ] {
+        let file: moxy::ast::File = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        let lexed: moxy::token::TokenStream = source.parse().unwrap();
+        assert_eq!(
+            moxy::token::ToTokenStream::to_token_stream(&file).to_string(),
+            lexed.to_string()
+        );
+    }
+}

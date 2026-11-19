@@ -106,14 +106,7 @@ impl Parse for GenericArgument {
 
             if peek_lone_colon(cursor) {
                 cursor = <Token![:]>::skip(cursor)?;
-                cursor = TypeBound::skip(cursor)?;
-
-                while <Token![+]>::peek(cursor) {
-                    cursor = <Token![+]>::skip(cursor)?;
-                    cursor = TypeBound::skip(cursor)?;
-                }
-
-                return Some(cursor);
+                return List::<TypeBound, Token![+]>::skip_while_present(cursor);
             }
 
             if <Token![=]>::peek(cursor) {
@@ -175,7 +168,7 @@ impl GenericArgument {
 
     fn parse_constraint(parser: &Parser, ident: Ident, generics: Option<AngleArguments>) -> Result<Self, ParseError> {
         let colon_punct = <_ as Parse>::parse(parser)?;
-        let bounds = List::parse_nonempty(parser)?;
+        let bounds = List::parse_while_present(parser)?;
 
         Ok(ConstraintArgument {
             ident,
