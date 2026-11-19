@@ -143,7 +143,6 @@ REJECT f: impl<T> X<T> { type Item; #[inline] fn next() -> Option<T> {} fn advan
 # Pending: invalid input that moxy accepts and `mut self` as a pattern, not
 # yet fixed
 ACCEPT e: abstract
-ACCEPT f: #[a = ] fn f() {}
 ACCEPT f: fn f(a | b: u8) {}
 ACCEPT p: #[a] x
 ACCEPT p: -'a'
