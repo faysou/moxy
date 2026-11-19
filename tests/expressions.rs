@@ -536,3 +536,26 @@ fn a_cast_type_ends_before_a_comparison() {
     let ty: Type = moxy::parse!("Vec<<T as A>::B>").unwrap();
     assert_eq!(ty.to_token_stream().to_string(), "Vec << T as A > :: B >");
 }
+
+#[test]
+fn an_open_range_ends_before_a_loop_or_branch_body() {
+    for source in [
+        "for i in 0.. { a(i) }",
+        "if x == (..) { a } else { b }",
+        "while let Some(v) = f(a..) { g() }",
+        "match a.. { _ => {} }",
+    ] {
+        let expression: Expr = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        let lexed: moxy::token::TokenStream = source.parse().unwrap();
+        assert_eq!(expression.to_token_stream().to_string(), lexed.to_string());
+    }
+
+    let expression: Expr = moxy::parse!("for i in 0.. { a(i) }").unwrap();
+    let range = expression.as_for_loop().unwrap().expr.as_range().unwrap();
+    assert!(range.start.is_some());
+    assert!(range.end.is_none());
+
+    // Outside a loop or branch header, a block is the range's end
+    let expression: Expr = moxy::parse!("0..{ 5 }").unwrap();
+    assert!(expression.as_range().unwrap().end.is_some());
+}
