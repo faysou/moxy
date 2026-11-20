@@ -246,6 +246,7 @@ const NESTED: &[(&str, char, &str, &str, &str, &str, &str, bool)] = &[
     ("yield", 'e', "", "yield ", "x", "", "", false),
     ("closure", 'e', "", "|| ", "x", "", "", false),
     ("closure param", 'e', "", "|x| ", "x", "", "", false),
+    ("closure in an operand", 'e', "", "|| 0 + ", "x", "", "", false),
     ("move closure", 'e', "", "move || ", "x", "", "", false),
     ("async closure", 'e', "", "async || ", "x", "", "", false),
     ("static closure", 'e', "", "static || ", "x", "", "", false),

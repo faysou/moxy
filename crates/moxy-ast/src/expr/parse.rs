@@ -376,13 +376,10 @@ fn binary_rest(
 ) -> Result<Box<Expr>, ParseError> {
     let mut chained = false;
 
-    while let Some(op) = peek_binary(parser.cursor()) {
-        let precedence = Precedence::of(&op);
-
-        if precedence < min || precedence == Precedence::Assign {
-            break;
-        }
-
+    // The frame of this function stays on the stack while each operand
+    // parses, so the operands and operators move through small functions of
+    // their own rather than through temporaries here
+    while let Some(precedence) = chain_precedence(parser, min) {
         // A chain that takes the chain before it as its first operand wraps
         // it, as `+` wraps `a * b` in `a * b + c`
         if chained && !wraps(subtree) {
@@ -393,41 +390,75 @@ fn binary_rest(
 
         // A chain inside an operand of a weaker chain nests a level, which the
         // depth counts; the steps of one chain do not nest
-        let _depth = match nested {
-            true => Some(moxy_token::__private::Depth::enter().ok_or_else(|| ParseError::too_deep(parser.span()))?),
-            false => None,
-        };
-        let mut operands = List::new();
-        operands.push_value(*left);
+        let depth = if nested { moxy_token::__private::Depth::enter() } else { None };
 
-        while peek_binary(parser.cursor()).is_some_and(|op| Precedence::of(&op) == precedence) {
-            let op: BinOp = <_ as Parse>::parse(parser)?;
+        if nested && depth.is_none() {
+            return too_deep(parser);
+        }
+
+        let mut operands = chain_start(left);
+
+        while continues_chain(parser, precedence) {
+            let op = <BinOp as Parse>::parse(parser)?;
             let right = match precedence.next() {
                 Some(stronger) => binary(parser, Default::default(), context, stronger, true)?,
                 None => cast(parser, Default::default(), context)?,
             };
-            operands.push_punct(op);
-            operands.push_value(*right);
+            chain_push(&mut operands, op, right);
 
             if precedence == Precedence::Compare {
                 break;
             }
         }
 
-        left = boxed(ExprBinaryChain {
-            attrs: Default::default(),
-            operands,
-        });
+        left = chain_end(operands);
 
         if precedence == Precedence::Compare
-            && let Some(next) = peek_binary(parser.cursor())
-            && next.is_comparison()
+            && let Some(error) = chained_comparison(parser)
         {
-            return Err(ParseError::new(next.span(), "comparison operators cannot be chained"));
+            return Err(error);
         }
     }
 
     Ok(left)
+}
+
+// The strength of the binary operator here, if one continues an expression
+// whose operators are at least as strong as `min`
+fn chain_precedence(parser: &Parser, min: Precedence) -> Option<Precedence> {
+    let precedence = Precedence::of(&peek_binary(parser.cursor())?);
+    (precedence >= min && precedence != Precedence::Assign).then_some(precedence)
+}
+
+// Whether an operator of `precedence` continues the chain here
+fn continues_chain(parser: &Parser, precedence: Precedence) -> bool {
+    peek_binary(parser.cursor()).is_some_and(|op| Precedence::of(&op) == precedence)
+}
+
+fn chain_start(first: Box<Expr>) -> List<Expr, BinOp> {
+    let mut operands = List::new();
+    operands.push_value(*first);
+    operands
+}
+
+fn chain_push(operands: &mut List<Expr, BinOp>, op: BinOp, operand: Box<Expr>) {
+    operands.push_punct(op);
+    operands.push_value(*operand);
+}
+
+fn chain_end(operands: List<Expr, BinOp>) -> Box<Expr> {
+    boxed(ExprBinaryChain {
+        attrs: Default::default(),
+        operands,
+    })
+}
+
+// The error for a comparison that follows a comparison, which does not chain
+#[cold]
+fn chained_comparison(parser: &Parser) -> Option<ParseError> {
+    let next = peek_binary(parser.cursor())?;
+    next.is_comparison()
+        .then(|| ParseError::new(next.span(), "comparison operators cannot be chained"))
 }
 
 fn cast(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<Box<Expr>, ParseError> {
@@ -1182,33 +1213,45 @@ fn array(parser: &Parser, span: DelimSpan, attrs: Attributes, first: Box<Expr>) 
 }
 
 fn closure(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<Box<Expr>, ParseError> {
+    let mut closure = closure_head(parser, attrs)?;
+
+    // A closure with a return type and a block takes another level of stack
+    let with_type = closure.output.is_type();
+    let weight = if with_type {
+        moxy_token::__private::Depth::enter()
+    } else {
+        None
+    };
+
+    if with_type && weight.is_none() {
+        return too_deep(parser);
+    }
+
+    // With a return type the body is a block, which ends the closure: in
+    // `|| -> u8 { 1 }.x` the field belongs to the closure
+    closure.body = if !with_type {
+        boxed_expr(parser, context)?
+    } else if parser.is_delimited(Delim::Brace) {
+        block(parser, Attributes::default())?
+    } else {
+        return parser.expected("block after the closure's return type").into();
+    };
+
+    Ok(closure_end(closure))
+}
+
+// A closure up to its body, in a frame of its own, which the body does not
+// hold while it parses; the body is left empty
+fn closure_head(parser: &Parser, attrs: Attributes) -> Result<Box<ExprClosure>, ParseError> {
     let lifetimes = <_ as Parse>::parse(parser)?;
     let constness = <_ as Parse>::parse(parser)?;
     let movability = <_ as Parse>::parse(parser)?;
     let asyncness = <_ as Parse>::parse(parser)?;
     let capture = <_ as Parse>::parse(parser)?;
     let (pipes, inputs) = closure_params(parser)?;
-    let output: ReturnType = <_ as Parse>::parse(parser)?;
-    // A closure with a return type and a block takes another level of stack
-    let _weight = if output.is_type() {
-        Some(moxy_token::__private::Depth::enter().ok_or_else(|| ParseError::too_deep(parser.span()))?)
-    } else {
-        None
-    };
+    let output = <_ as Parse>::parse(parser)?;
 
-    // With a return type the body is a block, which ends the closure: in
-    // `|| -> u8 { 1 }.x` the field belongs to the closure
-    let body = if output.is_type() {
-        if !parser.is_delimited(Delim::Brace) {
-            return parser.expected("block after the closure's return type").into();
-        }
-
-        block(parser, Attributes::default())?
-    } else {
-        boxed_expr(parser, context)?
-    };
-
-    Ok(boxed(ExprClosure {
+    Ok(Box::new(ExprClosure {
         attrs,
         lifetimes,
         constness,
@@ -1218,8 +1261,12 @@ fn closure(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<B
         pipes,
         inputs,
         output,
-        body,
+        body: Box::new(Expr::Verbatim(TokenStream::new())),
     }))
+}
+
+fn closure_end(closure: Box<ExprClosure>) -> Box<Expr> {
+    boxed(*closure)
 }
 
 // The pipes and parameters of a closure, in their own stack frame, which the
