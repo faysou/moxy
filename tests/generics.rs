@@ -334,3 +334,18 @@ fn where_clauses_and_parameter_attributes_format_as_other_lists() {
         assert_eq!(moxy::fmt!(&item).unwrap(), formatted, "`{source}`");
     }
 }
+
+// The attributes of a tuple field, an expression, and a pattern stay on its
+// line with a space after them
+#[test]
+fn field_expression_and_pattern_attributes_stay_on_their_line() {
+    for (source, formatted) in [
+        ("struct S(#[a] u8);", "struct S(#[a] u8);"),
+        ("fn f() { g(#[a] x); }", "fn f() {\n\tg(#[a] x);\n}"),
+        ("fn f() { |#[a] x| x; }", "fn f() {\n\t|#[a] x| x;\n}"),
+        ("fn f() { (#[a] x, y); }", "fn f() {\n\t(#[a] x, y);\n}"),
+    ] {
+        let item: Item = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        assert_eq!(moxy::fmt!(&item).unwrap(), formatted, "`{source}`");
+    }
+}

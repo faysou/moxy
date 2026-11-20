@@ -52,7 +52,16 @@ impl Parse for TypeTuple {
     }
 
     fn parse(parser: &Parser) -> Result<Self, ParseError> {
-        let elems = Delimited::parse_paren_with(parser, List::parse_all)?;
+        let elems = Delimited::parse_paren_with(parser, |inner| {
+            let elems: List<Type, Token![,]> = List::parse_all(inner)?;
+
+            // One element without a comma is a parenthesized type
+            if elems.len() == 1 && !elems.is_trailing() {
+                return Err(inner.expected("`,` after the only element of a tuple"));
+            }
+
+            Ok(elems)
+        })?;
         Ok(Self { elems })
     }
 

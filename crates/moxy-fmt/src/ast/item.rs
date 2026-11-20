@@ -169,7 +169,13 @@ impl Format for FieldsUnnamed {
 
 impl Format for Field {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
-        self.attrs.format(f)?;
+        // A tuple field keeps its attributes on its line, as in `S(#[a] u8)`
+        if self.ident.is_some() {
+            self.attrs.format(f)?;
+        } else {
+            super::attr::inline_attrs(&self.attrs, f)?;
+        }
+
         self.vis.format(f)?;
 
         if !matches!(self.vis, moxy_ast::Visibility::Inherited) {

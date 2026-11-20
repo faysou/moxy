@@ -14,8 +14,9 @@ impl Format for Attributes {
     }
 }
 
-// The attributes of a parameter, which stay on its line with a space after
-// each, as in `fn f(#[a] x: u8)`
+// The attributes of a parameter, a generic parameter, a tuple field, an
+// expression, or a pattern, which stay on its line with a space after each, as
+// in `fn f(#[a] x: u8)`
 pub(crate) fn inline_attrs(attrs: &Attributes, f: &mut Formatter) -> Result<(), FmtError> {
     for attr in attrs.iter() {
         attr.format(f)?;
