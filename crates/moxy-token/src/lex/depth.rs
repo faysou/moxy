@@ -38,10 +38,11 @@ use std::cell::Cell;
 ///   literal or struct pattern, a closure with a return type, a function
 ///   pointer type, parenthesized path arguments as in `Fn() -> T`, an array
 ///   type, a qualified self type as in `<T as A>::B`, an item inside a block,
-///   a module's body, a `let` initializer, and a `const` block in a pattern.
-/// - Three levels: an associated type or constant argument (`A<B = T>`), an
-///   associated type bound (`A<B: C>`), and a member of an impl, trait, or
-///   extern block.
+///   a module's body, a `let` initializer, a `const` block in a pattern, and
+///   an associated type or constant binding (`A<B = T>`), whose value takes
+///   the second level.
+/// - Three levels: an associated type bound (`A<B: C>`), whose bounds take
+///   the second and third, and a member of an impl, trait, or extern block.
 ///
 /// The steps of one chain of binary operators, postfix operations, casts,
 /// `else if` branches, or use path segments are held flat, so a chain counts
@@ -64,8 +65,8 @@ pub const MAX_DEPTH: usize = 144;
 /// The most expressions, types, patterns, items, blocks, use groups, use path
 /// chains, and token groups that a syntax tree may nest in one another, for a
 /// tree built in code, which counts half a level of [`MAX_DEPTH`] for each; an
-/// associated type bound counts as six and an associated binding as four, half
-/// a level for each level their parse takes. The parser's weights depend
+/// associated argument counts as two, and its bounds or value as four or two
+/// more, half a level for each level their parse takes. The parser's weights depend
 /// on each form and its context, so such a tree is measured by its nodes
 /// instead. The parser counts every node that wraps another one parsed before
 /// it, as `+` wraps `a * b` in `a * b + c`, so the trees it returns stay below

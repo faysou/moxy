@@ -67,21 +67,29 @@ impl<'ast> Visit<'ast> for DepthCheck {
         self.nest(|check| walk_use_group(check, node));
     }
 
+    // An associated argument nests generic arguments through its own, as in
+    // `A<B<C = u8> = u8>`, and its bounds or value, which the parser weighs
+    // more, as in `A<B: A<B: C>>`
     fn visit_constraint_argument(&mut self, node: &'ast ConstraintArgument) {
         self.nest_by(ConstraintArgument::NESTED_NODES, |check| {
-            walk_constraint_argument(check, node)
+            check.visit_path_arguments(&node.args);
+            check.nest_by(ConstraintArgument::BOUNDS_NESTED_NODES, |check| {
+                node.bounds.iter().for_each(|bound| check.visit_type_bound(bound))
+            });
         });
     }
 
-    // An associated binding nests generic arguments through its own, as in
-    // `A<B<C = u8> = u8>`
     fn visit_assoc_type_argument(&mut self, node: &'ast AssocTypeArgument) {
-        self.nest_by(AssocTypeArgument::NESTED_NODES, |check| walk_assoc_type_argument(check, node));
+        self.nest_by(AssocTypeArgument::NESTED_NODES, |check| {
+            check.visit_path_arguments(&node.args);
+            check.nest_by(AssocTypeArgument::TYPE_NESTED_NODES, |check| check.visit_type(&node.ty));
+        });
     }
 
     fn visit_assoc_const_argument(&mut self, node: &'ast AssocConstArgument) {
         self.nest_by(AssocConstArgument::NESTED_NODES, |check| {
-            walk_assoc_const_argument(check, node)
+            check.visit_path_arguments(&node.args);
+            check.nest_by(AssocConstArgument::EXPR_NESTED_NODES, |check| check.visit_expr(&node.expr));
         });
     }
 

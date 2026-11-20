@@ -1059,6 +1059,16 @@ fn deep_trees_of_every_kind_parse_and_traverse_or_report_the_depth() {
             deepest::<Expr>(|n| format!("{}a{}", "(".repeat(n), ") = 0.. = 0".repeat(n))),
         ),
         (
+            "associated bindings nested through their arguments",
+            MAX_DEPTH - 3,
+            deepest::<Type>(|n| format!("X<{}C{}>", "B<".repeat(n), "> = u8".repeat(n))),
+        ),
+        (
+            "associated type bounds nested through their arguments",
+            MAX_DEPTH - 3,
+            deepest::<Type>(|n| format!("X<{}C{}>", "B<".repeat(n), ">: D".repeat(n))),
+        ),
+        (
             "operator ladders in closures",
             (MAX_DEPTH - 1) / 9,
             deepest::<Expr>(|n| format!("{}0", "|| 0||0&&0==0|0^0&0<<0+0*".repeat(n))),
@@ -1695,17 +1705,12 @@ fn use_trees_and_associated_arguments_built_to_the_limit_run_every_traversal() {
         [groups, chains, bounds, bindings]
     });
 
-    // The item takes a node, a level of groups two (its chain and its group),
-    // and a chain one; the type takes one, a bound six, and a binding four
-    let nodes = moxy::token::MAX_NESTED_NODES;
-    let (bound, binding) = (
-        moxy::ast::ConstraintArgument::NESTED_NODES,
-        moxy::ast::AssocTypeArgument::NESTED_NODES,
-    );
-    assert_eq!(
-        limits,
-        [(nodes - 1) / 2, nodes - 1, (nodes - 1) / bound, (nodes - 1) / binding]
-    );
+    // Of the 288 nodes, the item or the type takes one. A level of groups
+    // takes two (its chain and its group), a chain one, a bound six (two for
+    // the argument and four around its bounds), and a binding nested through
+    // its arguments two, with three more for the innermost binding's `u8` (two
+    // around a binding's value and one for the type)
+    assert_eq!(limits, [143, 287, 47, 142]);
 }
 
 // The formatter checks a macro body's groups before it reads them, so a body

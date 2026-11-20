@@ -147,7 +147,7 @@ impl Format for AssocTypeArgument {
             self.ident.format(f)?;
             self.args.format(f)?;
             f.text(" = ")?;
-            self.ty.format(f)
+            f.nest_by(AssocTypeArgument::TYPE_NESTED_NODES, |f| self.ty.format(f))
         })
     }
 }
@@ -158,7 +158,7 @@ impl Format for AssocConstArgument {
             self.ident.format(f)?;
             self.args.format(f)?;
             f.text(" = ")?;
-            self.expr.format(f)
+            f.nest_by(AssocConstArgument::EXPR_NESTED_NODES, |f| self.expr.format(f))
         })
     }
 }
@@ -169,7 +169,7 @@ impl Format for ConstraintArgument {
             self.ident.format(f)?;
             self.args.format(f)?;
             f.text(": ")?;
-            self.bounds.format(f)
+            f.nest_by(ConstraintArgument::BOUNDS_NESTED_NODES, |f| self.bounds.format(f))
         })
     }
 }
