@@ -561,12 +561,12 @@ impl FromMeta for f64 {
 }
 
 // The error for a meta whose value is not the `expected` one, naming what
-// follows its name: nothing, a group, or the value's first token
+// follows its name: nothing, a group, or an expression preview
 fn expected_value(meta: &Meta, expected: &str) -> ParseError {
     let found = match &meta.content {
         MetaContent::Unit => "no value".to_owned(),
         MetaContent::List(group) => found_node(group),
-        MetaContent::Expr { expr, .. } => found_node(expr),
+        MetaContent::Expr { expr, .. } => found_value(expr),
     };
 
     ParseError::new(meta.span(), format!("expected {expected}, found {found}"))

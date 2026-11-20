@@ -252,16 +252,25 @@ pub(crate) fn found_node(node: &impl moxy_token::ToTokenStream) -> String {
 // Tokens a message names as found: whole when they are a short path, as
 // `a::b`, or else by their first token
 pub(crate) fn found_tokens(tokens: &TokenStream) -> String {
-    let path = |token: &TokenTree| match token {
-        TokenTree::Ident(_) | TokenTree::Keyword(_) => true,
-        // `::` is two `:` tokens in a stream
-        TokenTree::Punct(punct) => matches!(punct.as_str(), ":" | "::"),
-        _ => false,
-    };
-    let short = tokens.len() <= 7 && tokens.iter().all(path);
+    found_preview(tokens, false)
+}
+
+pub(crate) fn found_value(tokens: &TokenStream) -> String {
+    found_preview(tokens, true)
+}
+
+fn found_preview(tokens: &TokenStream, include_expression: bool) -> String {
+    if (2..=7).contains(&tokens.len()) {
+        let path = crate::Path::skip_mod_style(Cursor::from_tokens(tokens)).is_some_and(Cursor::is_empty);
+
+        if (path || include_expression)
+            && let Some(preview) = moxy_token::__private::short_token_text(tokens)
+        {
+            return quoted(&if path { compact(tokens) } else { preview });
+        }
+    }
 
     match tokens.first() {
-        Some(_) if short && tokens.len() > 1 => quoted(&compact(tokens)),
         Some(token) => found_token(token),
         None => "end of input".to_owned(),
     }

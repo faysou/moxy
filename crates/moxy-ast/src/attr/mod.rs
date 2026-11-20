@@ -242,8 +242,6 @@ impl Parse for Attributes {
 }
 
 impl Attributes {
-    // The inner attributes that open a file or a body, as `#![a]` in
-    // `mod m { #![a] }`
     // The outer attributes of a node that has not entered its level yet, as an
     // expression's before its parse: read a level below, as the node holds
     // them, so their arguments count from the node's level
@@ -265,6 +263,8 @@ impl Attributes {
         Self::skip(cursor)
     }
 
+    // The inner attributes that open a file or a body, as `#![a]` in
+    // `mod m { #![a] }`
     pub(crate) fn parse_inner(parser: &Parser) -> Result<Self, ParseError> {
         let mut attrs = Self::default();
 

@@ -2395,10 +2395,15 @@ fn messages_name_what_follows() {
 
     let unit: Meta = moxy::parse!("name").unwrap();
     let sum: Meta = moxy::parse!("a = 1 + 2").unwrap();
+    let path_value: Meta = moxy::parse!("a = A::B").unwrap();
+    let long_source = format!("a = 1 + \"{}\"", "x".repeat(128));
+    let long_value: Meta = moxy::parse!(long_source).unwrap();
     let attr = moxy::parse!("#[a = 1 +]" as moxy::ast::Attribute).err().unwrap();
     let path: moxy::ast::Path = moxy::parse!("a::b").unwrap();
+    let field: TokenStream = "a: b".parse().unwrap();
     let empty = TokenStream::from_iter([TokenTree::Group(Group::new(Delim::None, TokenStream::new()))]);
     let word = LitBool::scan(Cursor::new("x", 0)).err().unwrap();
+    let raw = LitBool::scan(Cursor::new("r#true", 0)).err().unwrap();
 
     assert_eq!(
         u8::from_meta(&unit).err().unwrap().message(),
@@ -2406,6 +2411,14 @@ fn messages_name_what_follows() {
     );
     assert_eq!(
         u8::from_meta(&sum).err().unwrap().message(),
+        "expected integer literal, found `1 + 2`"
+    );
+    assert_eq!(
+        u8::from_meta(&path_value).err().unwrap().message(),
+        "expected integer literal, found `A::B`"
+    );
+    assert_eq!(
+        u8::from_meta(&long_value).err().unwrap().message(),
         "expected integer literal, found `1`"
     );
     assert_eq!(attr.message(), "expected expression, found `]`");
@@ -2421,7 +2434,12 @@ fn messages_name_what_follows() {
         ParseError::expected(&empty, "identifier").message(),
         "expected identifier, found empty group"
     );
+    assert_eq!(
+        ParseError::expected(&field, "identifier").message(),
+        "expected identifier, found `a`"
+    );
     assert_eq!(word.to_string(), "expected boolean literal, found `x`");
+    assert_eq!(raw.to_string(), "expected boolean literal, found `r#true`");
 
     for message in [
         "expected integer literal, found no value",

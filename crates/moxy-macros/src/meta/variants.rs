@@ -36,14 +36,7 @@ impl Variant {
                 continue;
             }
 
-            let moxy::ast::MetaContent::List(group) = &attr.content else {
-                return Err(moxy::ast::ParseError::new(
-                    attr.span(),
-                    "expected `#[meta(...)]` with parenthesized rules, found no rules",
-                ));
-            };
-
-            let parser = moxy::ast::Parser::from_group(group);
+            let parser = moxy::ast::Parser::from_group(rules_group(attr)?);
             let rules = List::<MetaRule, moxy::ast::Token![,]>::parse_all(&parser)?;
 
             for rule in rules {

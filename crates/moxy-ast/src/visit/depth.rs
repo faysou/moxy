@@ -138,8 +138,9 @@ macro_rules! depth_checks {
             /// nest in one another count past [`MAX_NESTED_NODES`], a limit
             /// the parser's trees are tested to stay within. A tree within
             /// it runs every traversal on the stack `MAX_DEPTH` is sized
-            /// for, as tested for the shapes that the docs of [`MAX_NESTED_NODES`] list. The check stops descending once the
-            /// tree is past the limit, so it runs on a tree nested any depth.
+            /// for, as tested for the shapes listed in [`MAX_NESTED_NODES`].
+            /// The check stops descending once it exceeds the limit, so it
+            /// runs on trees nested to any depth.
             pub fn nests_past_max_depth(&self) -> bool {
                 let mut check = DepthCheck::default();
                 check.$visit(self);

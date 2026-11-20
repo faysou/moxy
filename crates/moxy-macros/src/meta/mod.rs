@@ -83,6 +83,29 @@ pub fn expand(tokens: TokenStream) -> TokenStream {
     }
 }
 
+fn rules_group(attr: &moxy::ast::Attribute) -> Result<&moxy_token::Group, moxy::ast::ParseError> {
+    let expected = "`#[meta(...)]` with parenthesized rules";
+
+    match &attr.content {
+        moxy::ast::MetaContent::List(group) => Ok(group),
+        moxy::ast::MetaContent::Unit => Err(moxy::ast::ParseError::new(
+            attr.span(),
+            format!("expected {expected}, found no value"),
+        )),
+        moxy::ast::MetaContent::Expr { eq, expr } => {
+            if let Some(value) = moxy_token::__private::short_token_text(expr) {
+                let found = moxy_token::__private::quoted(&format!("{eq} {value}"));
+                Err(moxy::ast::ParseError::new_spanned(
+                    &attr.content,
+                    format!("expected {expected}, found {found}"),
+                ))
+            } else {
+                Err(moxy::ast::ParseError::expected(eq, expected))
+            }
+        }
+    }
+}
+
 #[derive(Clone)]
 enum MetaRule {
     Default(Option<moxy::ast::Expr>),

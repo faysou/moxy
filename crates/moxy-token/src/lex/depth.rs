@@ -56,9 +56,10 @@ use std::cell::Cell;
 /// in `a = 0.. = 0`. The end of a range is one level. The outer attributes of
 /// an expression or a closure parameter count from the level of the node they
 /// belong to, and a block-like statement or match arm parsed alone takes the
-/// level that a block or match around it would give it. The tokens a node holds unparsed, as a macro body or
-/// attribute arguments, take a level for each group nested in them, as a
-/// traversal walks them that deep. Skipping takes the same levels as parsing.
+/// level that a block or match around it would give it. In unparsed tokens,
+/// such as a macro body or attribute arguments, each nested group takes a level
+/// because traversal descends through each group. Skipping takes the same
+/// levels as parsing.
 ///
 /// The count is the same on every build and platform, so a source parses or
 /// fails alike everywhere. It is sized for the 2 MiB stack of a spawned thread

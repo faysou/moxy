@@ -86,7 +86,7 @@ impl Scan for LitBool {
                 .error()
                 .message(format!(
                     "expected boolean literal, found {}",
-                    crate::__private::quoted(ident.text())
+                    crate::__private::quoted(&ident.to_string())
                 ))
                 .into()
         }
