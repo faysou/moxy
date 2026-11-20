@@ -10,11 +10,22 @@ use super::LexError;
 pub struct Cursor<'a> {
     rest: &'a str,
     offset: u32,
+    generation: std::num::NonZeroU32,
 }
 
 impl<'a> Cursor<'a> {
+    /// A cursor whose spans are in no source of the source map.
     pub fn new(src: &'a str, offset: u32) -> Self {
-        Self { rest: src, offset }
+        Self::at(src, fallback::Span::new(offset, offset))
+    }
+
+    // A cursor at the start of `span`, whose spans take its generation
+    pub(crate) fn at(src: &'a str, span: fallback::Span) -> Self {
+        Self {
+            rest: src,
+            offset: span.byte_range().start as u32,
+            generation: span.generation(),
+        }
     }
 
     pub fn rest(&self) -> &'a str {
@@ -38,12 +49,12 @@ impl<'a> Cursor<'a> {
     }
 
     pub fn span(&self) -> Span {
-        fallback::Span::new(self.offset, self.offset + 1).into()
+        fallback::Span::in_generation(self.generation, self.offset, self.offset + 1).into()
     }
 
     /// Create a fallback::Span from this cursor to another.
     pub fn span_to(&self, end: &Cursor<'_>) -> Span {
-        fallback::Span::new(self.offset, end.offset).into()
+        fallback::Span::in_generation(self.generation, self.offset, end.offset).into()
     }
 
     /// Get a slice of text from the current cursor to the provided end.
@@ -67,6 +78,7 @@ impl<'a> Cursor<'a> {
         Self {
             rest: &self.rest[n..],
             offset: self.offset + n as u32,
+            generation: self.generation,
         }
     }
 

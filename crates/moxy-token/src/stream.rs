@@ -352,7 +352,7 @@ impl TokenStream {
         SourceMap::with_mut(|sm| {
             let span = sm.push(s);
             let source = sm.find(span).expect("new source missing from source map");
-            let cursor = start(Cursor::new(source.text(), span.byte_range().start as u32));
+            let cursor = start(Cursor::at(source.text(), span));
             let (rest, stream) = Self::scan(cursor)?;
             let rest = rest.skip_whitespace();
 

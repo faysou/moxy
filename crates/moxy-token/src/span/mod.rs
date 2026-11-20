@@ -175,8 +175,8 @@ impl Span {
             Self::Fallback(s) => {
                 let range = s.byte_range();
                 let mid = (range.start + at) as u32;
-                let head = fallback::Span::new(range.start as u32, mid);
-                let rest = fallback::Span::new(mid, range.end as u32);
+                let head = fallback::Span::in_generation(s.generation(), range.start as u32, mid);
+                let rest = fallback::Span::in_generation(s.generation(), mid, range.end as u32);
                 (Span::Fallback(head), Span::Fallback(rest))
             }
             other => (other, other),

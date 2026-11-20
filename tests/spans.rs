@@ -322,3 +322,73 @@ fn tokens_after_multibyte_text_locate_in_their_own_source() {
     assert_eq!(text.as_deref(), Some("x"));
     assert_eq!((x.start().index(), x.start().line(), x.start().column()), (17, 1, 3));
 }
+
+// The span of the last token of `source`, lexed now
+fn last_span(source: &str) -> moxy::token::Span {
+    let tokens: moxy::token::TokenStream = source.parse().unwrap();
+    tokens.iter().last().unwrap().span()
+}
+
+// Whether the source map holds the source of `span`
+fn has_source(span: moxy::token::Span) -> bool {
+    let moxy::token::Span::Fallback(span) = span else { panic!() };
+    moxy::token::source::SourceMap::with(|map| map.find(span).is_some())
+}
+
+#[test]
+fn a_source_scope_releases_what_was_lexed_inside_it() {
+    use moxy::token::source::SourceMap;
+
+    let before = SourceMap::with(|map| map.len());
+    let mut inside = Vec::new();
+
+    for _ in 0..1_000 {
+        let _scope = SourceMap::scope();
+        let _: File = moxy::parse!("fn f() { g(1) }").unwrap();
+        let _: File = moxy::parse!("struct S;").unwrap();
+        inside.push(SourceMap::with(|map| map.len()));
+    }
+
+    assert_eq!(SourceMap::with(|map| map.len()), before);
+    assert_eq!(inside, vec![before + 2; 1_000]);
+}
+
+// A span whose source was released finds no source, even once later sources
+// are lexed, and reads as line 0 and column 0 instead of panicking
+#[test]
+fn a_released_span_finds_no_source() {
+    use moxy::token::Location;
+    use moxy::token::source::SourceMap;
+
+    let kept = last_span("a\n  b");
+    let released = {
+        let _scope = SourceMap::scope();
+        last_span("c\n  d")
+    };
+    let later = last_span("e\n  f");
+
+    assert!(has_source(kept) && has_source(later) && !has_source(released));
+    assert_eq!(released.start(), Location::new(0, 0, 0));
+    assert_eq!(released.end(), Location::new(0, 0, 0));
+    assert_eq!((kept.start().line(), kept.start().column()), (1, 2));
+    assert_eq!((later.start().line(), later.start().column()), (1, 2));
+}
+
+#[test]
+fn source_scopes_nest() {
+    use moxy::token::source::SourceMap;
+
+    let before = SourceMap::with(|map| map.len());
+    let outer = SourceMap::scope();
+    let first = last_span("a");
+    let inner = SourceMap::scope();
+    let second = last_span("b");
+    drop(inner);
+
+    let after_inner = (SourceMap::with(|map| map.len()), has_source(first), has_source(second));
+    drop(outer);
+
+    assert_eq!(after_inner, (before + 1, true, false));
+    assert_eq!(SourceMap::with(|map| map.len()), before);
+    assert!(!has_source(first));
+}

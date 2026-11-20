@@ -24,7 +24,7 @@ pub struct Source {
 }
 
 impl Source {
-    pub(crate) fn new(start: usize, src: impl Into<String>) -> Self {
+    pub(crate) fn new(generation: std::num::NonZeroU32, start: usize, src: impl Into<String>) -> Self {
         let text = src.into();
         let lines = std::iter::once(0)
             .chain(text.match_indices('\n').map(|(i, _)| i + 1))
@@ -32,7 +32,7 @@ impl Source {
 
         Self {
             path: None,
-            span: Span::new(start as u32, (start + text.len()) as u32),
+            span: Span::in_generation(generation, start as u32, (start + text.len()) as u32),
             text,
             lines,
         }
@@ -41,7 +41,7 @@ impl Source {
     pub fn from_file(path: impl Into<PathBuf>) -> std::io::Result<Self> {
         let path = path.into();
         let src = std::fs::read_to_string(&path)?;
-        let mut src = Self::new(0, src);
+        let mut src = Self::new(Span::NO_SOURCE, 0, src);
 
         src.path = Some(path);
         Ok(src)
