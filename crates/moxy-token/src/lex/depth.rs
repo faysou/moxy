@@ -48,7 +48,10 @@ use std::cell::Cell;
 /// as one level however long it is. A chain of postfix operations or casts,
 /// and each of those that continue a block-like statement as in
 /// `{ x }.a() as T`, counts a level above the base it wraps, as walking the
-/// tree nests through it. Skipping takes the same levels as parsing.
+/// tree nests through it; so does a chain of binary operators that takes an
+/// earlier chain as its first operand, as `+` in `a * b + c`, and a range or
+/// assignment whose left side is such a chain, as in `a + b..`. The end of a
+/// range is one level. Skipping takes the same levels as parsing.
 ///
 /// The count is the same on every build and platform, so a source parses or
 /// fails alike everywhere. It is sized for the 2 MiB stack of a spawned thread
@@ -59,10 +62,14 @@ use std::cell::Cell;
 pub const MAX_DEPTH: usize = 144;
 
 /// The most expressions, types, patterns, items, blocks, and token groups that
-/// nest in one another in a syntax tree that does not nest past
-/// [`MAX_DEPTH`]: such a tree counts half a level for each. The parser's
-/// weights depend on each form and its context, so a tree built in code is
-/// measured by its nodes instead; no tree the parser returns holds more.
+/// a syntax tree may nest in one another, for a tree built in code, which
+/// counts half a level of [`MAX_DEPTH`] for each. The parser's weights depend
+/// on each form and its context, so such a tree is measured by its nodes
+/// instead. The parser counts every node that wraps another one parsed before
+/// it, as `+` wraps `a * b` in `a * b + c`, so the trees it returns stay below
+/// the limit: the deepest tree of each form in the depth tests holds at most
+/// 286 of these nodes. That is measured over those forms, not proven for every
+/// input.
 pub const MAX_NESTED_NODES: usize = 2 * MAX_DEPTH;
 
 thread_local! {

@@ -87,9 +87,9 @@ macro_rules! depth_checks {
     ($($ty:ty => $visit:ident;)*) => {$(
         impl $ty {
             /// Whether the tree nests past [`MAX_DEPTH`](moxy_token::MAX_DEPTH), as a tree built in
-            /// code can, while one the parser returns never does: whether
-            /// more than [`MAX_NESTED_NODES`] expressions, types, patterns,
-            /// items, blocks, and token groups nest in one another. Every
+            /// code can: whether more than [`MAX_NESTED_NODES`] expressions,
+            /// types, patterns, items, blocks, and token groups nest in one
+            /// another, a limit the parser's trees stay below. Every
             /// traversal of a tree that does not runs on the stack
             /// `MAX_DEPTH` is sized for. The check stops descending once the
             /// tree is past the limit, so it runs on a tree nested any depth.

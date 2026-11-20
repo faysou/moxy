@@ -1,6 +1,6 @@
 use moxy_token::{Lit, TokenTree};
 
-use super::parse::{Precedence, peek_binary};
+use super::parse::{Precedence, peek_assignment, peek_binary};
 use super::peek;
 use super::*;
 
@@ -49,7 +49,8 @@ pub(crate) fn early_block_like(cursor: Cursor<'_>) -> Option<(Cursor<'_>, bool)>
             subtree.wrap(subtree.height())?;
         }
 
-        let cursor = binary_rest(cast_rest(operand)?, context, Precedence::Or)?;
+        let (cursor, chained) = binary_rest(cast_rest(operand)?, context, Precedence::Or, &subtree)?;
+        wrap_chained_left(cursor, chained, &subtree)?;
 
         if RangeLimits::peek(cursor) {
             return Some((range_limits(cursor, context)?.0, false));
@@ -183,7 +184,8 @@ fn primary(mut cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
         cursor = Pattern::skip(cursor)?;
         cursor = <Token![=]>::skip(cursor)?;
         // The scrutinee ends before `&&` and `||`, as in the parser
-        return binary_rest(cast(cursor, context)?, context, Precedence::Compare);
+        let subtree = moxy_token::__private::Depth::subtree();
+        return binary_rest(cast(cursor, context)?, context, Precedence::Compare, &subtree).map(|(cursor, _)| cursor);
     }
 
     if <Token![if]>::peek(cursor) {
@@ -466,13 +468,25 @@ fn cast_rest(mut cursor: Cursor<'_>) -> Option<Cursor<'_>> {
     Some(cursor)
 }
 
-fn binary(cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
-    binary_rest(cast(cursor, context)?, context, Precedence::Or)
+// Skips an operand and the binary operators after it, and tells whether it
+// read a chain of them
+fn binary(cursor: Cursor<'_>, context: ExprContext) -> Option<(Cursor<'_>, bool)> {
+    let subtree = moxy_token::__private::Depth::subtree();
+    binary_rest(cast(cursor, context)?, context, Precedence::Or, &subtree)
 }
 
 // Mirrors the precedence climbing of the parser, which rejects chained
-// comparisons and leaves compound assignment to the assignment level
-fn binary_rest(mut cursor: Cursor<'_>, context: ExprContext, min: Precedence) -> Option<Cursor<'_>> {
+// comparisons and leaves compound assignment to the assignment level, and
+// tells whether it read a chain. `subtree` measures from before the first
+// operand.
+fn binary_rest<'a>(
+    mut cursor: Cursor<'a>,
+    context: ExprContext,
+    min: Precedence,
+    subtree: &moxy_token::__private::Subtree,
+) -> Option<(Cursor<'a>, bool)> {
+    let mut chain = None;
+
     while let Some(op) = peek_binary(cursor) {
         let precedence = Precedence::of(&op);
 
@@ -480,6 +494,13 @@ fn binary_rest(mut cursor: Cursor<'_>, context: ExprContext, min: Precedence) ->
             break;
         }
 
+        // A chain of other operators after a chain wraps it, as in the parser
+        if chain.is_some_and(|chain| chain != precedence) {
+            subtree.wrap(subtree.height())?;
+        }
+
+        chain = Some(precedence);
+        let operand = moxy_token::__private::Depth::subtree();
         cursor = cast(BinOp::skip(cursor)?, context)?;
 
         // A chain of stronger operators in this operand nests a level, as it
@@ -491,7 +512,7 @@ fn binary_rest(mut cursor: Cursor<'_>, context: ExprContext, min: Precedence) ->
             })
         {
             let _depth = moxy_token::__private::Depth::enter()?;
-            cursor = binary_rest(cursor, context, stronger)?;
+            cursor = binary_rest(cursor, context, stronger, &operand)?.0;
         }
 
         if precedence == Precedence::Compare && peek_binary(cursor).is_some_and(|next| next.is_comparison()) {
@@ -499,13 +520,26 @@ fn binary_rest(mut cursor: Cursor<'_>, context: ExprContext, min: Precedence) ->
         }
     }
 
-    Some(cursor)
+    Some((cursor, chain.is_some()))
+}
+
+// Counts the level of a range or assignment that wraps a chain on its left,
+// as in the parser
+fn wrap_chained_left(cursor: Cursor<'_>, chained: bool, subtree: &moxy_token::__private::Subtree) -> Option<()> {
+    if chained && (RangeLimits::peek(cursor) || peek_assignment(cursor)) {
+        subtree.wrap(subtree.height())?;
+    }
+
+    Some(())
 }
 
 // Skips a range or the operand of one, and tells whether a range ended it
 fn range(mut cursor: Cursor<'_>, context: ExprContext) -> Option<(Cursor<'_>, bool)> {
     if !RangeLimits::peek(cursor) {
-        cursor = binary(cursor, context)?;
+        let subtree = moxy_token::__private::Depth::subtree();
+        let (end, chained) = binary(cursor, context)?;
+        cursor = end;
+        wrap_chained_left(cursor, chained, &subtree)?;
 
         if !RangeLimits::peek(cursor) {
             return Some((cursor, false));
@@ -531,7 +565,9 @@ fn range_limits(mut cursor: Cursor<'_>, context: ExprContext) -> Option<(Cursor<
     }
 
     if !context.is_end(cursor) && peek::expr(cursor, context) {
-        return Some((binary(cursor, context)?, true));
+        // The end nests below the range, as in the parser
+        let _depth = moxy_token::__private::Depth::enter()?;
+        return Some((binary(cursor, context)?.0, true));
     }
 
     (!closed).then_some((cursor, true))

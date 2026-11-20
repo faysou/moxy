@@ -37,9 +37,10 @@ use moxy_token::{MAX_DEPTH, MAX_NESTED_NODES, TokenStream};
 /// Accepts an optional [`FmtConfig`] as a second argument. When omitted,
 /// [`FmtConfig::default`] is used.
 ///
-/// Returns `Result<String, FmtError>`. A tree built in code that nests more
-/// than [`MAX_NESTED_NODES`] nodes, which no parsed tree does, is an error
-/// instead of a stack overflow.
+/// Returns `Result<String, FmtError>`. A tree that nests more than
+/// [`MAX_NESTED_NODES`] nodes, as a tree built in code can, is an error
+/// instead of a stack overflow; the parser's trees stay below that limit, as
+/// its docs say.
 ///
 /// The intended pipeline is `template!` → `parse!` → `fmt!`: generate tokens,
 /// parse them into an AST node, then format it.
