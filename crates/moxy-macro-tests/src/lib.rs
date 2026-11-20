@@ -97,3 +97,10 @@ pub fn lexed_sources(_tokens: moxy::token::TokenStream) -> Result<moxy::token::T
     let count = moxy::token::Lit::usize_unsuffixed(count);
     Ok(moxy::template! { {{ &count }} })
 }
+
+// Wraps its input expression in parentheses that the template builds
+#[proc_macro]
+pub fn parenthesized(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let tokens: moxy::token::TokenStream = input.into();
+    moxy::template! { ({{ &tokens }}) }.into()
+}

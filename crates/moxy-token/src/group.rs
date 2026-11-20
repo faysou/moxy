@@ -13,10 +13,13 @@ pub struct Group {
 impl Group {
     #[inline]
     pub fn new(delim: Delim, stream: TokenStream) -> Self {
-        // A group built in code has no delimiters in a source, so it opens at
-        // its first token and closes at its last
+        // A group built in code has no delimiters in a source. Around tokens
+        // with source positions it opens at the first and closes at the last;
+        // around tokens with compiler spans, which have no position here, it
+        // takes the call site, as proc_macro's groups do, so the compiler
+        // treats it as macro output
         let span = match (stream.first(), stream.last()) {
-            (Some(first), Some(last)) => DelimSpan::new(first.span(), last.span()),
+            (Some(first), Some(last)) if !stream.span().is_empty() => DelimSpan::new(first.span(), last.span()),
             _ => DelimSpan::new(Span::call_site(), Span::call_site()),
         };
 
