@@ -18,6 +18,10 @@ impl Format for Attributes {
 // expression, or a pattern, which stay on its line with a space after each, as
 // in `fn f(#[a] x: u8)`
 pub(crate) fn inline_attrs(attrs: &Attributes, f: &mut Formatter) -> Result<(), FmtError> {
+    if std::mem::take(&mut f.stmt_expr_attrs) {
+        return attrs.format(f);
+    }
+
     for attr in attrs.iter() {
         attr.format(f)?;
         f.text(" ")?;

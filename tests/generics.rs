@@ -367,6 +367,10 @@ fn attributes_take_their_own_line_where_rustfmt_puts_them() {
         ),
         ("fn f() { #[allow(x)] foo(); }", "fn f() {\n\t#[allow(x)]\n\tfoo();\n}"),
         ("fn f() { g(#[a] x); }", "fn f() {\n\tg(#[a] x);\n}"),
+        (
+            "fn f() { #[a] if x { #[b] g(#[c] y); } }",
+            "fn f() {\n\t#[a]\n\tif x {\n\t\t#[b]\n\t\tg(#[c] y);\n\t}\n}",
+        ),
     ] {
         let item: Item = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
         assert_eq!(moxy::fmt!(&item).unwrap(), formatted, "`{source}`");

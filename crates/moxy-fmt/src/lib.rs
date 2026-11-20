@@ -104,6 +104,7 @@ pub struct Formatter {
     // The nodes that nest around the node being formatted, counted as
     // `MAX_NESTED_NODES` counts them
     nodes: usize,
+    stmt_expr_attrs: bool,
 }
 
 impl Formatter {
@@ -115,6 +116,7 @@ impl Formatter {
             depth: 0,
             column: 0,
             nodes: 0,
+            stmt_expr_attrs: false,
         }
     }
 

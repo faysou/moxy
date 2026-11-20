@@ -33,21 +33,11 @@ impl Format for Stmt {
             Self::Block(v) => v.format(f),
             Self::Item(v) => v.format(f),
             Self::Expr(expr, semi) => {
-                // As rustfmt does, the attributes of an expression statement
-                // take their own line, where those of an operand stay inline
-                match expr.attrs().filter(|attrs| !attrs.is_empty()) {
-                    Some(attrs) => {
-                        attrs.format(f)?;
-                        let mut bare = expr.clone();
-
-                        if let Some(attrs) = bare.attrs_mut() {
-                            *attrs = Attributes::default();
-                        }
-
-                        bare.format(f)?;
-                    }
-                    None => expr.format(f)?,
-                }
+                // Each attributed expression formats its attributes before its children
+                let previous = std::mem::replace(&mut f.stmt_expr_attrs, expr.attrs().is_some());
+                let formatted = expr.format(f);
+                f.stmt_expr_attrs = previous;
+                formatted?;
 
                 if semi.is_some() {
                     f.text(";")?;
