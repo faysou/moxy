@@ -1804,3 +1804,50 @@ fn a_built_tree_and_its_macro_body_share_the_node_limit() {
 
     assert_eq!(checked, (false, true));
 }
+
+fn first_operand(expr: &mut moxy::ast::Expr) -> &mut moxy::ast::Expr {
+    let moxy::ast::Expr::BinaryChain(chain) = expr else { panic!() };
+    chain.operands.first_mut().unwrap()
+}
+
+fn tuple_element(expr: &mut moxy::ast::Expr) -> &mut moxy::ast::Expr {
+    let moxy::ast::Expr::Tuple(tuple) = expr else { panic!() };
+    tuple.elems.inner.first_mut().unwrap()
+}
+
+fn call_argument(expr: &mut moxy::ast::Expr) -> &mut moxy::ast::Expr {
+    let moxy::ast::Expr::Postfix(postfix) = expr else { panic!() };
+    let moxy::ast::Postfix::Call(call) = &mut postfix.ops[0] else {
+        panic!()
+    };
+    call.args.inner.first_mut().unwrap()
+}
+
+fn tuple_struct_element(pattern: &mut moxy::ast::Pattern) -> &mut moxy::ast::Pattern {
+    let moxy::ast::Pattern::TupleStruct(tuple) = pattern else {
+        panic!()
+    };
+    tuple.elems.inner.first_mut().unwrap()
+}
+
+fn tuple_type_element(ty: &mut moxy::ast::Type) -> &mut moxy::ast::Type {
+    let moxy::ast::Type::Tuple(tuple) = ty else { panic!() };
+    tuple.elems.inner.first_mut().unwrap()
+}
+
+// Trees built to the node limit through nodes that hold their children in
+// lists run every traversal on a small stack
+#[test]
+fn trees_of_list_nodes_built_to_the_limit_run_every_traversal() {
+    use moxy::ast::{Expr, Pattern, Type};
+
+    let n = moxy::token::MAX_NESTED_NODES - 1;
+
+    on_small_stack(move || {
+        traverse(built::<Expr>("x+0", "x", n, first_operand));
+        traverse(built::<Expr>("(x,)", "x", n, tuple_element));
+        traverse(built::<Expr>("f(x)", "x", n, call_argument));
+        traverse(built::<Pattern>("S(x)", "x", n, tuple_struct_element));
+        traverse(built::<Type>("(u8,)", "u8", n, tuple_type_element));
+    });
+}
