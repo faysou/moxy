@@ -982,6 +982,7 @@ walked! {
     moxy::ast::Type => visit_type, visit_type_mut;
     moxy::ast::Pattern => visit_pattern, visit_pattern_mut;
     moxy::ast::StmtBlock => visit_stmt_block, visit_stmt_block_mut;
+    moxy::ast::Stmt => visit_stmt, visit_stmt_mut;
 }
 
 impl Walked for moxy::ast::File {
@@ -1862,6 +1863,7 @@ const LEAVES: &[(char, &str)] = &[
     ('e', "x"),
     ('e', "m!([[[x]]])"),
     ('e', "#[a((b))] x"),
+    ('e', "#[a((b))] x + 0"),
     ('e', "0*0+0<<0&0^0|0==0&&0||0"),
     ('e', "a = 0.. = 0.. = 0"),
     ('t', "u8"),
@@ -1872,13 +1874,23 @@ const LEAVES: &[(char, &str)] = &[
     ('p', "1..=2"),
 ];
 
+// A leaf that only one kind reads, which tells the kind of the centre of an
+// outer construct, as a pattern for "closure pattern"
+const CENTRE_PROBES: &[(char, &str)] = &[('e', "1 + 1"), ('t', "&'a u8"), ('p', "ref x")];
+
 // Text after each level of an outer expression that makes the level wrap more
 // nodes, as an assignment wraps its left side
 const SUFFIXES: &[&str] = &["", " = 0", "*0+0", " = 0.. = 0"];
 
-// Every nineteenth ordered pair of constructs of one kind, which keeps the
-// run to a few seconds while each construct appears as outer and inner
-const PAIR_STRIDE: usize = 19;
+// Every construct is an outer this many times, each with the next inner of
+// its centre's kind in turn, so every construct is also an inner about as
+// often
+const INNERS_PER_OUTER: usize = 1;
+
+// The construct that fills a tree to the node limit around or inside another:
+// a closure and a binary chain per level, two nodes for each level the parser
+// takes, the most a construct holds
+const FILLER: &str = "closure in an operand";
 
 // The constructs nested in one another: one nested `outer` levels, with
 // `suffix` after each, around another nested `inner` levels around a leaf
@@ -1893,10 +1905,33 @@ fn composed(outer: usize, inner: usize, levels: (usize, usize), leaf: &str, suff
     )
 }
 
-// Parses a source as `kind` and, if it parses, checks its depth and formats
+// The roots a source of a kind is parsed as: an expression, outside the half
+// nesting, also as a statement, where a block-like root takes its own level,
+// and on the other pair of the same outer as the statement of a block
+fn roots(kind: char, pair: usize, half: bool) -> &'static [char] {
+    match kind {
+        'e' if half => &['e'],
+        'e' if pair % 2 == 0 => &['e', 's'],
+        'e' => &['e', 'b'],
+        't' => &['t'],
+        _ => &['p'],
+    }
+}
+
+// The kind of a construct's centre, which a leaf that only that kind reads
+// fills, or `None` when no probe does
+fn centre_kind(case: usize) -> Option<char> {
+    let (_, kind, before, open, _, close, after, _) = NESTED[case];
+    CENTRE_PROBES
+        .iter()
+        .find(|(_, probe)| parsed_tree_holds(kind, format!("{before}{open}{probe}{close}{after}"), false).is_some())
+        .map(|(centre, _)| *centre)
+}
+
+// Parses a source as `root` and, if it parses, checks its depth and formats
 // it, every traversal running when `traverse_all` is set; `None` when it does
-// not parse
-fn parsed_tree_holds(kind: char, source: String, traverse_all: bool) -> Option<bool> {
+// not parse. It runs on the caller's stack.
+fn parsed_tree_holds(root: char, source: String, traverse_all: bool) -> Option<bool> {
     fn holds<T>(node: T, traverse_all: bool) -> bool
     where
         T: moxy::token::ToTokenStream + moxy::token::Spanner + Clone + PartialEq + std::fmt::Debug,
@@ -1911,8 +1946,14 @@ fn parsed_tree_holds(kind: char, source: String, traverse_all: bool) -> Option<b
         holds
     }
 
-    on_small_stack(move || match kind {
+    match root {
         'e' => moxy::parse!(source as moxy::ast::Expr)
+            .ok()
+            .map(|node| holds(node, traverse_all)),
+        's' => moxy::parse!(source as moxy::ast::Stmt)
+            .ok()
+            .map(|node| holds(node, traverse_all)),
+        'b' => moxy::parse!((format!("{{ {source} }}")) as moxy::ast::StmtBlock)
             .ok()
             .map(|node| holds(node, traverse_all)),
         't' => moxy::parse!(source as moxy::ast::Type)
@@ -1921,97 +1962,216 @@ fn parsed_tree_holds(kind: char, source: String, traverse_all: bool) -> Option<b
         _ => moxy::parse!(source as moxy::ast::Pattern)
             .ok()
             .map(|node| holds(node, traverse_all)),
-    })
+    }
+}
+
+// The deepest `n` in `[low, high)` for which `parses` holds, by bisection,
+// given that it holds at `low`
+fn deepest_in(mut low: usize, mut high: usize, mut parses: impl FnMut(usize) -> bool) -> usize {
+    while high - low > 1 {
+        let middle = (low + high) / 2;
+
+        if parses(middle) {
+            low = middle;
+        } else {
+            high = middle;
+        }
+    }
+
+    low
 }
 
 // Whatever parses passes the depth check and formats, for constructs nested
 // in one another around leaves that add nodes without levels: the depth check
-// and the parser count the same tree
+// and the parser count the same tree. An expression is parsed as an
+// expression, a statement, and the statement of a block.
 #[test]
 fn composed_constructs_that_parse_pass_the_depth_check() {
-    let composable: Vec<usize> = (0..NESTED.len())
-        .filter(|&case| matches!(NESTED[case].1, 'e' | 't' | 'p') && !NESTED[case].7)
-        .collect();
-    // The deepest nesting of a construct that parses, which no construct
-    // takes past 300 levels
-    let limit = |case: usize| {
-        let (mut low, mut high) = (1, 300);
+    on_small_stack(compose);
+}
 
-        while high - low > 1 {
-            let middle = (low + high) / 2;
-
-            if parsed_tree_holds(NESTED[case].1, nested(case, middle), false).is_some() {
-                low = middle;
-            } else {
-                high = middle;
-            }
-        }
-
-        low
-    };
-    let limits: std::collections::HashMap<usize, usize> = composable.iter().map(|&case| (case, limit(case))).collect();
-    let (mut checked, mut failures) = (0, Vec::new());
-
-    for (index, (&outer, &inner)) in composable
+// The compositions of `composed_constructs_that_parse_pass_the_depth_check`,
+// run on one small stack, whose frames here take a few kilobytes
+fn compose() {
+    let composable: Vec<usize> = (0..NESTED.len()).filter(|&case| !NESTED[case].7).collect();
+    let limits: std::collections::HashMap<usize, usize> = composable
         .iter()
-        .flat_map(|outer| composable.iter().map(move |inner| (outer, inner)))
-        .filter(|(outer, inner)| NESTED[**outer].1 == NESTED[**inner].1)
-        .enumerate()
-        .filter(|(index, _)| index % PAIR_STRIDE == 0)
-    {
-        let kind = NESTED[outer].1;
-        let leaves: Vec<&str> = LEAVES
-            .iter()
-            .filter(|(leaf_kind, _)| *leaf_kind == kind)
-            .map(|(_, leaf)| *leaf)
-            .collect();
-        let leaf = leaves[index % leaves.len()];
-        let suffix = if kind == 'e' {
-            SUFFIXES[index / PAIR_STRIDE % SUFFIXES.len()]
-        } else {
-            ""
-        };
-        let deepest = limits[&outer];
+        .map(|&case| {
+            (
+                case,
+                deepest_in(1, 300, |n| {
+                    parsed_tree_holds(NESTED[case].1, nested(case, n), false).is_some()
+                }),
+            )
+        })
+        .collect();
+    // Files and blocks hold their centre in an item or a statement, which the
+    // leaves do not fill
+    let centres: std::collections::HashMap<usize, char> = composable
+        .iter()
+        .filter(|&&case| matches!(NESTED[case].1, 'e' | 't' | 'p'))
+        .filter_map(|&case| centre_kind(case).map(|centre| (case, centre)))
+        .collect();
+    let (mut checked, mut unfitting, mut failures, mut dropped) = (0, 0, Vec::new(), Vec::new());
 
-        for levels in [1, deepest / 2, deepest.saturating_sub(1)] {
-            // The deepest inner nesting that parses, by bisection; every tree
-            // that parses on the way is checked
-            let (mut low, mut high) = (0, limits[&inner] + 1);
-            let mut holds_at = |n: usize| {
-                let outcome = parsed_tree_holds(kind, composed(outer, inner, (levels, n), leaf, suffix), false);
+    // Checks every tree that parses as `root` on the way to the deepest `n` in
+    // `[low, high)` at which `source(n)` parses, and runs every traversal on
+    // that deepest tree
+    let mut sweep = |root: char, low: usize, high: usize, source: &dyn Fn(usize) -> String| {
+        let deepest = deepest_in(low, high, |n| match parsed_tree_holds(root, source(n), false) {
+            Some(false) => {
+                failures.push(format!("{root}: {}", source(n)));
+                true
+            }
+            outcome => outcome.is_some(),
+        });
+        parsed_tree_holds(root, source(deepest), true);
+    };
 
-                if outcome == Some(false) {
-                    failures.push(composed(outer, inner, (levels, n), leaf, suffix));
-                }
+    // Each type and pattern construct alone around every leaf of its centre's
+    // kind, as deep as it parses: where the leaf's own nodes meet the limit.
+    // Expression constructs meet it inside the filler below.
+    for (&case, &centre) in centres.iter().filter(|(case, _)| NESTED[**case].1 != 'e') {
+        let (_, kind, before, open, _, close, after, _) = NESTED[case];
 
-                outcome.is_some()
-            };
+        for &(_, leaf) in LEAVES.iter().filter(|(leaf_kind, _)| *leaf_kind == centre) {
+            let source = |n: usize| format!("{before}{}{leaf}{}{after}", open.repeat(n), close.repeat(n));
 
-            if !holds_at(low) {
+            // A leaf that the centre does not take, as an assignment in the
+            // end of a range
+            if parsed_tree_holds(kind, source(1), false).is_none() {
+                unfitting += 1;
                 continue;
             }
 
-            while high - low > 1 {
-                let middle = (low + high) / 2;
-
-                if holds_at(middle) {
-                    low = middle;
-                } else {
-                    high = middle;
-                }
-            }
-
             checked += 1;
-            parsed_tree_holds(kind, composed(outer, inner, (levels, low), leaf, suffix), true);
+            sweep(kind, 1, limits[&case] + 2, &source);
         }
     }
 
-    assert!(checked > 300, "{checked} compositions parsed");
+    // Each expression construct one level inside the filler, around every leaf
+    // of its centre's kind, and one level around it as a statement, with the
+    // filler as deep as it parses: where an off-by-one in either count shows
+    let filler = composable.iter().copied().find(|&case| NESTED[case].0 == FILLER).unwrap();
+
+    for (&case, &centre) in centres.iter().filter(|(case, _)| NESTED[**case].1 == 'e') {
+        for &(_, leaf) in LEAVES.iter().filter(|(leaf_kind, _)| *leaf_kind == centre) {
+            if parsed_tree_holds('e', composed(filler, case, (1, 1), leaf, ""), false).is_none() {
+                unfitting += 1;
+                continue;
+            }
+
+            checked += 1;
+            sweep('e', 1, limits[&filler] + 1, &|n| composed(filler, case, (n, 1), leaf, ""));
+        }
+
+        if centre != 'e' {
+            continue;
+        }
+
+        // As a statement, where a block-like root takes its own level, with
+        // and without a binary chain before the filler, so the nodes meet the
+        // limit at either parity
+        let (_, _, before, open, _, close, after, _) = NESTED[case];
+        let filler_open = NESTED[filler].3;
+
+        for (root, prefix) in [('s', ""), ('s', "0 + ")] {
+            let source = |n: usize| format!("{before}{open}{prefix}{}x{close}{after}", filler_open.repeat(n));
+
+            if parsed_tree_holds(root, source(1), false).is_none() {
+                unfitting += 1;
+                continue;
+            }
+
+            checked += 1;
+            sweep(root, 1, limits[&filler] + 1, &source);
+        }
+    }
+
+    let mut turns = std::collections::HashMap::<char, usize>::new();
+
+    // Pairs of constructs, the outer nested 1 level, half its limit, or one
+    // short of it, with a suffix after each level, around an inner nested as
+    // deep as it parses
+    for &outer in &composable {
+        let kind = NESTED[outer].1;
+        let Some(&centre) = centres.get(&outer) else {
+            continue;
+        };
+        let inners: Vec<usize> = composable
+            .iter()
+            .copied()
+            .filter(|case| NESTED[*case].1 == centre && centres.contains_key(case))
+            .collect();
+
+        for pair in 0..INNERS_PER_OUTER {
+            let turn = turns.entry(centre).or_default();
+            let inner = inners[*turn % inners.len()];
+            let leaves: Vec<&str> = LEAVES
+                .iter()
+                .filter(|(k, _)| *k == centres[&inner])
+                .map(|(_, leaf)| *leaf)
+                .collect();
+            let leaf = leaves[*turn / inners.len() % leaves.len()];
+            let chosen = if kind == 'e' { SUFFIXES[*turn % SUFFIXES.len()] } else { "" };
+            *turn += 1;
+
+            let half = limits[&outer] / 2;
+
+            for target in [1, half, limits[&outer].saturating_sub(1).max(1)] {
+                for &root in roots(kind, pair, target == half && half > 1) {
+                    let reads =
+                        |suffix: &str| parsed_tree_holds(root, composed(outer, inner, (1, 0), leaf, suffix), false).is_some();
+
+                    // A suffix the grammar rejects after the construct, as an
+                    // assignment after a range or `*0+0` after a block-like
+                    // statement, gives way to none
+                    let suffix = if reads(chosen) {
+                        chosen
+                    } else if reads("") {
+                        unfitting += 1;
+                        ""
+                    } else {
+                        dropped.push(format!(
+                            "{} in {} as {root}: does not parse around `{leaf}`",
+                            NESTED[inner].0, NESTED[outer].0
+                        ));
+                        continue;
+                    };
+
+                    // The outer, as deep as it parses up to the target around
+                    // the bare inner, then the inner as deep as it parses
+                    let levels = deepest_in(1, target + 1, |n| {
+                        parsed_tree_holds(root, composed(outer, inner, (n, 0), leaf, suffix), false).is_some()
+                    });
+
+                    checked += 1;
+                    sweep(root, 0, limits[&inner] + 1, &|n| {
+                        composed(outer, inner, (levels, n), leaf, suffix)
+                    });
+                }
+            }
+        }
+    }
+
+    eprintln!(
+        "{checked} compositions, {unfitting} leaves or suffixes that do not fit, {} constructs with a centre",
+        centres.len()
+    );
+    assert!(checked > 900, "{checked} compositions parsed");
     assert!(
         failures.is_empty(),
         "parsed but failed the depth check or formatting:\n{}",
         failures.join("\n")
     );
+    // `static` begins an item at the start of a statement, so a static
+    // closure is no statement
+    assert!(
+        dropped.iter().all(|drop| drop.contains("in static closure as ")),
+        "dropped:\n{}",
+        dropped.join("\n")
+    );
+    assert_eq!(dropped.len(), 2, "dropped:\n{}", dropped.join("\n"));
 }
 
 fn first_operand(expr: &mut moxy::ast::Expr) -> &mut moxy::ast::Expr {
