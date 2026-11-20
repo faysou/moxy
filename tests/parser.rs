@@ -349,6 +349,8 @@ const NESTED: &[(&str, char, &str, &str, &str, &str, &str, bool)] = &[
     ("box dyn generics", 't', "", "Box<dyn A<", "u8", ">>", "", false),
     ("assoc type", 't', "", "A<B = ", "u8", ">", "", false),
     ("assoc bound", 't', "", "A<B: ", "C", ">", "", false),
+    ("assoc binding arguments", 't', "X<", "B<", "C", "> = u8", ">", false),
+    ("assoc bound arguments", 't', "X<", "B<", "C", ">: D", ">", false),
     ("qself", 't', "", "<", "T", " as A>::B", "", false),
     ("type turbofish", 't', "", "A::<", "u8", ">", "", false),
     ("impl generics", 't', "", "impl A<", "u8", ">", "", false),
@@ -1803,6 +1805,163 @@ fn a_built_tree_and_its_macro_body_share_the_node_limit() {
     });
 
     assert_eq!(checked, (false, true));
+}
+
+// Leaves that add nodes or token groups without parser levels of their own
+const LEAVES: &[(char, &str)] = &[
+    ('e', "x"),
+    ('e', "m!([[[x]]])"),
+    ('e', "#[a((b))] x"),
+    ('e', "0*0+0<<0&0^0|0==0&&0||0"),
+    ('e', "a = 0.. = 0.. = 0"),
+    ('t', "u8"),
+    ('t', "m!([[[u8]]])"),
+    ('t', "A<B<C> = u8, D: E>"),
+    ('p', "x"),
+    ('p', "m!([[[x]]])"),
+    ('p', "1..=2"),
+];
+
+// Text after each level of an outer expression that makes the level wrap more
+// nodes, as an assignment wraps its left side
+const SUFFIXES: &[&str] = &["", " = 0", "*0+0", " = 0.. = 0"];
+
+// Every nineteenth ordered pair of constructs of one kind, which keeps the
+// run to a few seconds while each construct appears as outer and inner
+const PAIR_STRIDE: usize = 19;
+
+// The constructs nested in one another: one nested `outer` levels, with
+// `suffix` after each, around another nested `inner` levels around a leaf
+fn composed(outer: usize, inner: usize, levels: (usize, usize), leaf: &str, suffix: &str) -> String {
+    let (_, _, before, open, _, close, after, _) = NESTED[inner];
+    let core = format!("{before}{}{leaf}{}{after}", open.repeat(levels.1), close.repeat(levels.1));
+    let (_, _, before, open, _, close, after, _) = NESTED[outer];
+    format!(
+        "{before}{}{core}{}{after}",
+        open.repeat(levels.0),
+        format!("{close}{suffix}").repeat(levels.0)
+    )
+}
+
+// Parses a source as `kind` and, if it parses, checks its depth and formats
+// it, every traversal running when `traverse_all` is set; `None` when it does
+// not parse
+fn parsed_tree_holds(kind: char, source: String, traverse_all: bool) -> Option<bool> {
+    fn holds<T>(node: T, traverse_all: bool) -> bool
+    where
+        T: moxy::token::ToTokenStream + moxy::token::Spanner + Clone + PartialEq + std::fmt::Debug,
+        T: moxy::fmt::Format + serde::Serialize + Walked + 'static,
+    {
+        let holds = !node.nests_past_max_depth() && moxy::fmt!(&node).is_ok();
+
+        if holds && traverse_all {
+            traverse(node);
+        }
+
+        holds
+    }
+
+    on_small_stack(move || match kind {
+        'e' => moxy::parse!(source as moxy::ast::Expr)
+            .ok()
+            .map(|node| holds(node, traverse_all)),
+        't' => moxy::parse!(source as moxy::ast::Type)
+            .ok()
+            .map(|node| holds(node, traverse_all)),
+        _ => moxy::parse!(source as moxy::ast::Pattern)
+            .ok()
+            .map(|node| holds(node, traverse_all)),
+    })
+}
+
+// Whatever parses passes the depth check and formats, for constructs nested
+// in one another around leaves that add nodes without levels: the depth check
+// and the parser count the same tree
+#[test]
+fn composed_constructs_that_parse_pass_the_depth_check() {
+    let composable: Vec<usize> = (0..NESTED.len())
+        .filter(|&case| matches!(NESTED[case].1, 'e' | 't' | 'p') && !NESTED[case].7)
+        .collect();
+    // The deepest nesting of a construct that parses, which no construct
+    // takes past 300 levels
+    let limit = |case: usize| {
+        let (mut low, mut high) = (1, 300);
+
+        while high - low > 1 {
+            let middle = (low + high) / 2;
+
+            if parsed_tree_holds(NESTED[case].1, nested(case, middle), false).is_some() {
+                low = middle;
+            } else {
+                high = middle;
+            }
+        }
+
+        low
+    };
+    let limits: std::collections::HashMap<usize, usize> = composable.iter().map(|&case| (case, limit(case))).collect();
+    let (mut checked, mut failures) = (0, Vec::new());
+
+    for (index, (&outer, &inner)) in composable
+        .iter()
+        .flat_map(|outer| composable.iter().map(move |inner| (outer, inner)))
+        .filter(|(outer, inner)| NESTED[**outer].1 == NESTED[**inner].1)
+        .enumerate()
+        .filter(|(index, _)| index % PAIR_STRIDE == 0)
+    {
+        let kind = NESTED[outer].1;
+        let leaves: Vec<&str> = LEAVES
+            .iter()
+            .filter(|(leaf_kind, _)| *leaf_kind == kind)
+            .map(|(_, leaf)| *leaf)
+            .collect();
+        let leaf = leaves[index % leaves.len()];
+        let suffix = if kind == 'e' {
+            SUFFIXES[index / PAIR_STRIDE % SUFFIXES.len()]
+        } else {
+            ""
+        };
+        let deepest = limits[&outer];
+
+        for levels in [1, deepest / 2, deepest.saturating_sub(1)] {
+            // The deepest inner nesting that parses, by bisection; every tree
+            // that parses on the way is checked
+            let (mut low, mut high) = (0, limits[&inner] + 1);
+            let mut holds_at = |n: usize| {
+                let outcome = parsed_tree_holds(kind, composed(outer, inner, (levels, n), leaf, suffix), false);
+
+                if outcome == Some(false) {
+                    failures.push(composed(outer, inner, (levels, n), leaf, suffix));
+                }
+
+                outcome.is_some()
+            };
+
+            if !holds_at(low) {
+                continue;
+            }
+
+            while high - low > 1 {
+                let middle = (low + high) / 2;
+
+                if holds_at(middle) {
+                    low = middle;
+                } else {
+                    high = middle;
+                }
+            }
+
+            checked += 1;
+            parsed_tree_holds(kind, composed(outer, inner, (levels, low), leaf, suffix), true);
+        }
+    }
+
+    assert!(checked > 300, "{checked} compositions parsed");
+    assert!(
+        failures.is_empty(),
+        "parsed but failed the depth check or formatting:\n{}",
+        failures.join("\n")
+    );
 }
 
 fn first_operand(expr: &mut moxy::ast::Expr) -> &mut moxy::ast::Expr {
