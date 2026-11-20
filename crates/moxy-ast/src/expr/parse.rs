@@ -1218,9 +1218,12 @@ fn array(parser: &Parser, span: DelimSpan, attrs: Attributes, first: Box<Expr>) 
 
 fn closure(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<Box<Expr>, ParseError> {
     let mut closure = closure_head(parser, attrs)?;
+    let Expr::Closure(head) = &mut *closure else {
+        unreachable!("the head is a closure");
+    };
 
     // A closure with a return type and a block takes another level of stack
-    let with_type = closure.output.is_type();
+    let with_type = head.output.is_type();
     let weight = if with_type {
         moxy_token::__private::Depth::enter()
     } else {
@@ -1233,7 +1236,7 @@ fn closure(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<B
 
     // With a return type the body is a block, which ends the closure: in
     // `|| -> u8 { 1 }.x` the field belongs to the closure
-    closure.body = if !with_type {
+    head.body = if !with_type {
         boxed_expr(parser, context)?
     } else if parser.is_delimited(Delim::Brace) {
         block(parser, Attributes::default())?
@@ -1241,12 +1244,12 @@ fn closure(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<B
         return parser.expected("block after the closure's return type").into();
     };
 
-    Ok(closure_end(closure))
+    Ok(closure)
 }
 
 // A closure up to its body, in a frame of its own, which the body does not
 // hold while it parses; the body is left empty
-fn closure_head(parser: &Parser, attrs: Attributes) -> Result<Box<ExprClosure>, ParseError> {
+fn closure_head(parser: &Parser, attrs: Attributes) -> Result<Box<Expr>, ParseError> {
     let lifetimes = <_ as Parse>::parse(parser)?;
     let constness = <_ as Parse>::parse(parser)?;
     let movability = <_ as Parse>::parse(parser)?;
@@ -1255,7 +1258,7 @@ fn closure_head(parser: &Parser, attrs: Attributes) -> Result<Box<ExprClosure>, 
     let (pipes, inputs) = closure_params(parser)?;
     let output = <_ as Parse>::parse(parser)?;
 
-    Ok(Box::new(ExprClosure {
+    Ok(boxed(ExprClosure {
         attrs,
         lifetimes,
         constness,
@@ -1267,10 +1270,6 @@ fn closure_head(parser: &Parser, attrs: Attributes) -> Result<Box<ExprClosure>, 
         output,
         body: Box::new(Expr::Verbatim(TokenStream::new())),
     }))
-}
-
-fn closure_end(closure: Box<ExprClosure>) -> Box<Expr> {
-    boxed(*closure)
 }
 
 // The pipes and parameters of a closure, in their own stack frame, which the
