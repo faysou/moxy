@@ -37,7 +37,7 @@ impl Format for TypeTuple {
         self.elems.inner.format(f)?;
 
         // A tuple of one element keeps its comma, as in `(a,)`
-        if self.elems.inner.len() == 1 && self.elems.inner.is_trailing() {
+        if self.elems.inner.len() == 1 {
             f.text(",")?;
         }
 
@@ -143,10 +143,7 @@ impl Format for BareFnParam {
 
 impl Format for BareFnArg {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
-        for attr in self.attrs.iter() {
-            attr.format(f)?;
-            f.text(" ")?;
-        }
+        super::attr::inline_attrs(&self.attrs, f)?;
 
         if let Some((name, _)) = &self.name {
             name.format(f)?;

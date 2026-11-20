@@ -67,8 +67,9 @@ impl Format for PatTuple {
         f.text("(")?;
         self.elems.inner.format(f)?;
 
-        // A tuple of one element keeps its comma, as in `(a,)`
-        if self.elems.inner.len() == 1 && self.elems.inner.is_trailing() {
+        // A tuple of one element keeps its comma, as in `(a,)`, except a lone
+        // rest pattern, as in `(..)`
+        if self.elems.inner.len() == 1 && !self.elems.inner.first().is_some_and(Pattern::is_rest) {
             f.text(",")?;
         }
 
@@ -216,7 +217,7 @@ impl Format for PatRange {
 
 impl Format for PatType {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
-        self.attrs.format(f)?;
+        super::attr::inline_attrs(&self.attrs, f)?;
         self.pat.format(f)?;
         f.text(": ")?;
         self.ty.format(f)

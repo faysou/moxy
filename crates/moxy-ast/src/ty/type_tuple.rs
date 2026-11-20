@@ -69,6 +69,8 @@ impl Spanner for TypeTuple {
 
 impl ToTokens for TypeTuple {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        self.elems.to_tokens(tokens);
+        let mut inner = TokenStream::new();
+        self.elems.inner.tuple_to_tokens(&mut inner);
+        self.elems.surround(tokens, inner);
     }
 }

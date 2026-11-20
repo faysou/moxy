@@ -14,6 +14,17 @@ impl Format for Attributes {
     }
 }
 
+// The attributes of a parameter, which stay on its line with a space after
+// each, as in `fn f(#[a] x: u8)`
+pub(crate) fn inline_attrs(attrs: &Attributes, f: &mut Formatter) -> Result<(), FmtError> {
+    for attr in attrs.iter() {
+        attr.format(f)?;
+        f.text(" ")?;
+    }
+
+    Ok(())
+}
+
 // The inner attributes that open a body, each on its own line
 pub(crate) fn inner_attrs(attrs: &Attributes, f: &mut Formatter) -> Result<(), FmtError> {
     for attr in attrs.iter() {

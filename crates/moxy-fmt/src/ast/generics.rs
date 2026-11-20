@@ -29,15 +29,14 @@ impl Format for WhereClause {
         f.hard_break()?;
         f.text("where")?;
 
-        for pair in self.predicates.pairs() {
+        // A comma separates the predicates and follows none, as in other lists
+        for (i, pred) in self.predicates.iter().enumerate() {
+            if i > 0 {
+                f.text(",")?;
+            }
+
             f.hard_break()?;
-            f.indent(|f| match pair {
-                moxy_ast::Pair::List(pred, _) => {
-                    pred.format(f)?;
-                    f.text(",")
-                }
-                moxy_ast::Pair::End(pred) => pred.format(f),
-            })?;
+            f.indent(|f| pred.format(f))?;
         }
 
         Ok(())

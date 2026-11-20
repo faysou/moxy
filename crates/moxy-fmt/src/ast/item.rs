@@ -70,7 +70,7 @@ impl Format for FnParam {
 
 impl Format for Receiver {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
-        self.attrs.format(f)?;
+        super::attr::inline_attrs(&self.attrs, f)?;
 
         if self.reference.is_some() {
             f.text("&")?;
@@ -106,7 +106,7 @@ impl Format for Receiver {
 
 impl Format for Variadic {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
-        self.attrs.format(f)?;
+        super::attr::inline_attrs(&self.attrs, f)?;
 
         if let Some(pat) = &self.pat {
             pat.format(f)?;

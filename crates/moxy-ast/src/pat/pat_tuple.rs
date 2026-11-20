@@ -78,6 +78,14 @@ impl Parse for PatTuple {
 impl ToTokens for PatTuple {
     fn to_tokens(&self, t: &mut TokenStream) {
         self.attrs.to_tokens(t);
-        self.elems.to_tokens(t);
+
+        // A lone rest pattern, as in `(..)`, needs no comma
+        if self.elems.inner.first().is_some_and(Pattern::is_rest) {
+            self.elems.to_tokens(t);
+        } else {
+            let mut inner = TokenStream::new();
+            self.elems.inner.tuple_to_tokens(&mut inner);
+            self.elems.surround(t, inner);
+        }
     }
 }

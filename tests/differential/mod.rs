@@ -418,3 +418,57 @@ fn collect_rust_files(dir: &Path, paths: &mut Vec<PathBuf>) {
         }
     }
 }
+
+// Formatting is idempotent: the text formatted from a corpus source that
+// parses parses again, and formats to the same text
+#[test]
+fn formatting_every_parsed_corpus_source_is_idempotent() {
+    fn again<T: m::Parse + moxy::fmt::Format>(source: &str) -> Option<Result<(), String>> {
+        let node: T = moxy::parse!(source).ok()?;
+        let Ok(first) = moxy::fmt!(&node) else {
+            return None;
+        };
+        let reparsed: T = match moxy::parse!((first.as_str())) {
+            Ok(reparsed) => reparsed,
+            Err(error) => return Some(Err(format!("formats to `{first}`, which fails: {}", error.message()))),
+        };
+        let second = moxy::fmt!(&reparsed).map_err(|error| error.to_string());
+
+        Some(match second {
+            Ok(second) if second == first => Ok(()),
+            second => Err(format!("formats to `{first}`, then to `{second:?}`")),
+        })
+    }
+
+    let mut failures = Vec::new();
+    let mut checked = 0;
+
+    for line in entries(CORPUS) {
+        let (kind, source) = line.split_once(": ").unwrap();
+        let source = source.replace("\\n", "\n");
+        let outcome = match kind {
+            "e" => again::<m::Expr>(&source),
+            "b" => again::<m::StmtBlock>(&source),
+            "p" => again::<m::Pattern>(&source),
+            "t" => again::<m::Type>(&source),
+            "i" => again::<m::Item>(&source),
+            "f" => again::<m::File>(&source),
+            _ => panic!("unknown kind `{kind}`"),
+        };
+
+        match outcome {
+            Some(Ok(())) => checked += 1,
+            Some(Err(failure)) => failures.push(format!("{line}: {failure}")),
+            None => {}
+        }
+    }
+
+    assert!(checked > 1_000, "{checked} sources");
+    assert!(
+        failures.is_empty(),
+        "{} of {}:\n{}",
+        failures.len(),
+        checked + failures.len(),
+        failures.join("\n")
+    );
+}

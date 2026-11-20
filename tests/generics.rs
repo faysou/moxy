@@ -284,3 +284,53 @@ fn formatted_lists_drop_a_trailing_separator() {
         assert_eq!(moxy::fmt!(&item).unwrap(), formatted, "`{source}`");
     }
 }
+
+// A tuple of one element keeps its comma, however it was built, and a
+// parameter's attributes stay on its line with a space after them
+#[test]
+fn built_one_element_tuples_keep_their_comma() {
+    use moxy::ast::{Expr, Pattern, Type};
+    use moxy::token::ToTokenStream;
+
+    let mut expr: Expr = moxy::parse!("(a,)").unwrap();
+    let Expr::Tuple(tuple) = &mut expr else { panic!() };
+    tuple.elems.inner.pop_punct();
+    let mut ty: Type = moxy::parse!("(u8,)").unwrap();
+    let Type::Tuple(tuple) = &mut ty else { panic!() };
+    tuple.elems.inner.pop_punct();
+    let mut pattern: Pattern = moxy::parse!("(a,)").unwrap();
+    let Pattern::Tuple(tuple) = &mut pattern else { panic!() };
+    tuple.elems.inner.pop_punct();
+    let rest: Pattern = moxy::parse!("(..)").unwrap();
+
+    assert_eq!(
+        [
+            moxy::fmt!(&expr).unwrap(),
+            moxy::fmt!(&ty).unwrap(),
+            moxy::fmt!(&pattern).unwrap(),
+            moxy::fmt!(&rest).unwrap()
+        ],
+        ["(a,)", "(u8,)", "(a,)", "(..)"]
+    );
+    assert_eq!(
+        [
+            expr.to_token_stream().to_string(),
+            ty.to_token_stream().to_string(),
+            pattern.to_token_stream().to_string()
+        ],
+        ["(a ,)", "(u8 ,)", "(a ,)"]
+    );
+}
+
+#[test]
+fn where_clauses_and_parameter_attributes_format_as_other_lists() {
+    for (source, formatted) in [
+        ("fn f() where T: A, {}", "fn f()\nwhere\nT: A {}"),
+        ("struct S where T: A, U: B, ;", "struct S\nwhere\nT: A,\nU: B;"),
+        ("fn f(#[b] self, #[a] x: u8) {}", "fn f(#[b] self, #[a] x: u8) {}"),
+        ("type F = fn(#[a] u8, #[b] ...);", "type F = fn(#[a] u8, #[b] ...);"),
+    ] {
+        let item: Item = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        assert_eq!(moxy::fmt!(&item).unwrap(), formatted, "`{source}`");
+    }
+}

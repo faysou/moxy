@@ -196,7 +196,7 @@ impl Format for ExprTuple {
         self.elems.inner.format(f)?;
 
         // A tuple of one element keeps its comma, as in `(a,)`
-        if self.elems.inner.len() == 1 && self.elems.inner.is_trailing() {
+        if self.elems.inner.len() == 1 {
             f.text(",")?;
         }
 
