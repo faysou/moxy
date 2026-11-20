@@ -64,17 +64,23 @@ use std::cell::Cell;
 /// thread with at least 2 MiB.
 pub const MAX_DEPTH: usize = 144;
 
-/// The most expressions, types, patterns, items, blocks, use groups, use path
-/// chains, and token groups that a syntax tree may nest in one another, for a
-/// tree built in code, which counts half a level of [`MAX_DEPTH`] for each; an
-/// associated argument counts as two, and its bounds or value as four or two
-/// more, half a level for each level their parse takes. The parser's weights depend
-/// on each form and its context, so such a tree is measured by its nodes
-/// instead. The parser counts every node that wraps another one parsed before
-/// it, as `+` wraps `a * b` in `a * b + c`, so the trees it returns stay below
-/// the limit: the deepest tree of each form in the depth tests holds at most
-/// 286 of these nodes. That is measured over those forms, not proven for every
-/// input.
+/// The most nested nodes a syntax tree may hold, for a tree built in code.
+///
+/// Expressions, types, patterns, items, blocks, use groups, and use path
+/// chains count one node each, an associated argument two, its bounds or
+/// value four or two more, and each group nested in a macro body or attribute
+/// arguments two: half a level of [`MAX_DEPTH`] for each level the parser
+/// charges them. A tree within the limit runs every traversal on the stack
+/// that `MAX_DEPTH` is sized for, which tests check for trees built to the
+/// limit through unary, list, and block expressions, references, patterns,
+/// types, use trees, associated arguments, and macro bodies.
+///
+/// Parsing does not count nodes, since walking the tree once more would add
+/// about an eighth to the cost of a parse. It charges levels so that its
+/// trees stay within the limit, which is tested, not proven: for every
+/// construct of the depth tests at its deepest, and for sampled pairs of them
+/// nested in each other around leaves and with suffixes that add nodes
+/// without levels.
 pub const MAX_NESTED_NODES: usize = 2 * MAX_DEPTH;
 
 thread_local! {
