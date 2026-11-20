@@ -426,3 +426,22 @@ fn a_byte_order_mark_takes_no_column() {
     let span = last_span("\u{feff}a b");
     assert_eq!((span.start().line(), span.start().column()), (0, 2));
 }
+
+// A lex error spans the character at the cursor, which is none at the end of
+// the input, so the error stays in its source and never splits a character
+#[test]
+fn a_lex_error_spans_the_character_it_is_at() {
+    use moxy::token::source::SourceMap;
+    use moxy::token::{Span, TokenStream};
+
+    let source_text = |span: Span| {
+        let Span::Fallback(span) = span else { panic!() };
+        SourceMap::with(|map| map.find(span).map(|source| source.slice(span)))
+    };
+    let unterminated = "fn f() {\n  \"abc".parse::<TokenStream>().unwrap_err().span();
+    let unexpected = "a €".parse::<TokenStream>().unwrap_err().span();
+
+    assert_eq!((unterminated.start().line(), unterminated.start().column()), (1, 6));
+    assert_eq!(source_text(unterminated).as_deref(), Some(""));
+    assert_eq!(source_text(unexpected).as_deref(), Some("€"));
+}

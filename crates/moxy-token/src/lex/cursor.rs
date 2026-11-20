@@ -48,8 +48,11 @@ impl<'a> Cursor<'a> {
         self.rest.starts_with(s)
     }
 
+    /// The span of the character at the cursor, which is empty at the end of
+    /// the input.
     pub fn span(&self) -> Span {
-        fallback::Span::in_generation(self.generation, self.offset, self.offset + 1).into()
+        let width = self.first().map_or(0, char::len_utf8) as u32;
+        fallback::Span::in_generation(self.generation, self.offset, self.offset + width).into()
     }
 
     /// Create a fallback::Span from this cursor to another.
