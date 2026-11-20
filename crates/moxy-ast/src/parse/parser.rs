@@ -8,18 +8,23 @@ use crate::{Cursor, Parse, ParseError};
 #[derive(Clone)]
 pub struct Parser<'a> {
     cursor: Cell<Cursor<'a>>,
+    // The delimiter that closes the group the parser reads, which an error at
+    // the end of its tokens names
+    close: Option<Delim>,
 }
 
 impl<'a> Parser<'a> {
     pub fn from_tokens(tokens: &'a TokenStream) -> Self {
         Self {
             cursor: Cell::new(Cursor::from_tokens(tokens)),
+            close: None,
         }
     }
 
     pub fn from_cursor(cursor: Cursor<'a>) -> Self {
         Self {
             cursor: Cell::new(cursor),
+            close: None,
         }
     }
 
@@ -46,24 +51,38 @@ impl<'a> Parser<'a> {
     /// An error at the current token, which is not the `expected` input, that
     /// names the token or the end of the input, as "expected `;`, found `}`".
     pub fn expected(&self, expected: impl std::fmt::Display) -> ParseError {
-        match self.curr() {
-            Some(token) => self.error(format!("expected {expected}, found `{}`", received(token))),
-            None => self.error(format!("expected {expected}, found end of input")),
-        }
+        self.error(format!("expected {expected}, found {}", self.found()))
     }
 
     /// An error at the current token, which no input expects, as "unexpected
     /// `@`".
     pub fn unexpected(&self) -> ParseError {
-        match self.curr() {
-            Some(token) => self.error(format!("unexpected `{}`", received(token))),
-            None => self.error("unexpected end of input"),
+        self.error(format!("unexpected {}", self.found()))
+    }
+
+    // The current token as a message quotes it: at the end of a group's
+    // tokens, the delimiter that closes it, or else the end of the input
+    fn found(&self) -> String {
+        match (self.curr(), self.close) {
+            (Some(token), _) => quoted(&received(token)),
+            (None, Some(close)) => quoted(&close.close().to_string()),
+            (None, None) => "end of input".to_owned(),
+        }
+    }
+
+    // A parser over the tokens of `group`, which knows the delimiter that
+    // closes them
+    fn in_group(group: &'a moxy_token::Group) -> Self {
+        Self {
+            cursor: Cell::new(Cursor::from_tokens(&group.tokens)),
+            close: (group.delim != Delim::None).then_some(group.delim),
         }
     }
 
     pub fn fork(&self) -> Self {
         Self {
             cursor: self.cursor.clone(),
+            close: self.close,
         }
     }
 
@@ -169,7 +188,7 @@ impl<'a> Parser<'a> {
         match self.cursor().curr() {
             Some(TokenTree::Group(group)) if group.delim == delim => {
                 self.advance();
-                Ok(Self::from_tokens(&group.tokens))
+                Ok(Self::in_group(group))
             }
             _ => Err(self.expected(format_args!("`{}`", delim.open()))),
         }
@@ -179,7 +198,7 @@ impl<'a> Parser<'a> {
         match self.cursor().curr() {
             Some(TokenTree::Group(group)) if group.delim == delim => {
                 self.advance();
-                Ok((group.span, Self::from_tokens(&group.tokens)))
+                Ok((group.span, Self::in_group(group)))
             }
             _ => Err(self.expected(format_args!("`{}`", delim.open()))),
         }
@@ -201,9 +220,26 @@ impl<'a> Parser<'a> {
 // `{ ... }`, so a message does not print a whole macro body
 pub(crate) fn received(token: &TokenTree) -> String {
     match token {
+        // A group without delimiters, which only a stream from the compiler
+        // holds, by its first token
+        TokenTree::Group(group) if group.delim == Delim::None => match group.tokens.first() {
+            Some(first) if group.tokens.len() > 1 => format!("{} ...", received(first)),
+            Some(first) => received(first),
+            None => String::new(),
+        },
         TokenTree::Group(group) if group.tokens.is_empty() => format!("{}{}", group.delim.open(), group.delim.close()),
         TokenTree::Group(group) => format!("{} ... {}", group.delim.open(), group.delim.close()),
         other => other.to_string(),
+    }
+}
+
+// Code in a message in backticks, or in double ones with spaces when it holds a
+// backtick, as a string literal can
+pub(crate) fn quoted(code: &str) -> String {
+    if code.contains('`') {
+        format!("`` {code} ``")
+    } else {
+        format!("`{code}`")
     }
 }
 

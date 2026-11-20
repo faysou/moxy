@@ -669,10 +669,7 @@ fn a_closure_with_a_return_type_takes_a_block_and_an_inclusive_range_an_end() {
     assert!(expression.as_postfix().unwrap().base.is_closure());
 
     for (source, message) in [
-        (
-            "|x: u8| -> u8 x",
-            "expected a block after the closure's return type, found `x`",
-        ),
+        ("|x: u8| -> u8 x", "expected block after the closure's return type, found `x`"),
         ("a..=", "an inclusive range needs an end"),
         ("..=", "an inclusive range needs an end"),
     ] {

@@ -34,7 +34,10 @@ impl Parse for PatOr {
     fn parse(parser: &Parser) -> Result<Self, ParseError> {
         match <_ as Parse>::parse(parser)? {
             Pattern::Or(value) => Ok(value),
-            _ => parser.error("expected or-pattern").into(),
+            other => Err(ParseError::new(
+                other.span(),
+                format!("expected or-pattern, found {}", quoted(&other.to_token_stream().to_string())),
+            )),
         }
     }
 

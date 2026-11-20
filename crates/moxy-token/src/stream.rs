@@ -60,9 +60,12 @@ impl TokenStream {
     }
 
     /// Whether the stream's groups nest deeper than `levels`, as `[[x]]` nests
-    /// two. With [`MAX_DEPTH`](crate::MAX_DEPTH) it tells whether lexing the
-    /// stream's text would refuse it, for a stream built in code. The check
-    /// does not recurse, so it runs on a stream nested any depth.
+    /// two. Every group counts, including one without delimiters, which only a
+    /// stream from the compiler or proc_macro2 holds; converting such a stream
+    /// counts it the same way. With [`MAX_DEPTH`](crate::MAX_DEPTH) it tells
+    /// whether lexing the stream's text, or converting it, would refuse it, for
+    /// a stream built in code. The check does not recurse, so it runs on a
+    /// stream nested any depth.
     pub fn nests_deeper_than(&self, levels: usize) -> bool {
         let mut open = vec![self.0.iter()];
 
@@ -260,7 +263,7 @@ impl Scan for TokenStream {
             let literal = if starts_literal {
                 let invalid = |error: LexError| {
                     if error.is_reject() {
-                        c.error().message("invalid literal")
+                        LexError::new(error.span()).message("invalid literal")
                     } else {
                         error
                     }

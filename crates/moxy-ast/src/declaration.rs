@@ -140,7 +140,7 @@ impl Parse for Declaration {
         } else if item::ItemUnion::peek(parser.cursor()) {
             Ok(Self::Union(<_ as Parse>::parse(parser)?))
         } else {
-            parser.expected("a struct, enum, or union").into()
+            parser.expected("struct, enum, or union").into()
         }
     }
 

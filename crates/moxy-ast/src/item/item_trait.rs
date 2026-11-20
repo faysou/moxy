@@ -39,7 +39,7 @@ impl Parse for ItemTrait {
     fn parse(parser: &Parser) -> Result<Self, ParseError> {
         match Self::parse_or_alias(parser)? {
             super::Item::Trait(item) => Ok(*item),
-            _ => parser.error("expected trait").into(),
+            other => Err(ParseError::new(other.span(), "expected trait, found trait alias")),
         }
     }
 

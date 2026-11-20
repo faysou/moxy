@@ -1,4 +1,4 @@
-error: expected an identifier, found `123`
+error: expected identifier, found `123`
  --> fixtures/trybuild/template/fail/invalid_paste.rs:2:8
   |
 2 |     fn {{ 123 }}() {}

@@ -1175,7 +1175,7 @@ fn closure(parser: &Parser, attrs: Attributes, context: ExprContext) -> Result<B
     // `|| -> u8 { 1 }.x` the field belongs to the closure
     let body = if output.is_type() {
         if !parser.is_delimited(Delim::Brace) {
-            return parser.expected("a block after the closure's return type").into();
+            return parser.expected("block after the closure's return type").into();
         }
 
         block(parser, Attributes::default())?

@@ -105,12 +105,12 @@ fn parenthesized_macro_items_need_a_semicolon() {
     let error = moxy::parse!("trait A { m!() }" as Item).err().unwrap();
     assert_eq!(
         error.message(),
-        "expected `;` after a macro item in parentheses or brackets, found end of input"
+        "expected `;` after a macro item in parentheses or brackets, found `}`"
     );
     let error = moxy::parse!("impl A { m![] }" as Item).err().unwrap();
     assert_eq!(
         error.message(),
-        "expected `;` after a macro item in parentheses or brackets, found end of input"
+        "expected `;` after a macro item in parentheses or brackets, found `}`"
     );
 
     for source in ["trait A { m!(); n! {} }", "impl A { m![]; n! {} }"] {

@@ -41,7 +41,7 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> TokenStream {
             .sig
             .params
             .span()
-            .error("expected a function with one parameter and a return type")
+            .error("expected function with one parameter and a return type")
             .emit();
     }
 
@@ -50,7 +50,7 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> TokenStream {
             .sig
             .output
             .span()
-            .error("expected a function with one parameter and a return type")
+            .error("expected function with one parameter and a return type")
             .emit();
     };
 

@@ -45,7 +45,7 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> TokenStream {
             {
                 ident.clone()
             } else {
-                return moxy::ast::ParseError::new(expr.span(), "expected a string literal or an identifier").to_compile_error();
+                return moxy::ast::ParseError::new(expr.span(), "expected string literal or identifier").to_compile_error();
             };
         }
     }
@@ -59,7 +59,7 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> TokenStream {
             .sig
             .params
             .span()
-            .error("expected a function with two parameters and a return type")
+            .error("expected function with two parameters and a return type")
             .emit();
     }
 
@@ -68,7 +68,7 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> TokenStream {
             .sig
             .output
             .span()
-            .error("expected a function with two parameters and a return type")
+            .error("expected function with two parameters and a return type")
             .emit();
     };
 

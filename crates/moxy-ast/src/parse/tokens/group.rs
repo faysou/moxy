@@ -17,7 +17,7 @@ impl Parse for Group {
                 parser.advance();
                 Ok(v.clone())
             }
-            _ => Err(parser.expected("a delimited group")),
+            _ => Err(parser.expected("delimited group")),
         }
     }
 

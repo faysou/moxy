@@ -445,3 +445,14 @@ fn a_lex_error_spans_the_character_it_is_at() {
     assert_eq!(source_text(unterminated).as_deref(), Some(""));
     assert_eq!(source_text(unexpected).as_deref(), Some("€"));
 }
+
+// A malformed literal is reported where its scan failed, as at the digit that
+// its base does not allow
+#[test]
+fn an_invalid_literal_is_reported_where_it_fails() {
+    let error = "a 0b2".parse::<moxy::token::TokenStream>().unwrap_err();
+    assert_eq!(
+        (error.to_string().as_str(), error.span().start().column()),
+        ("invalid literal", 4)
+    );
+}

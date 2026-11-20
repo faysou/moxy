@@ -155,6 +155,8 @@ fn error_messages_follow_one_style() {
             && !message.ends_with('.')
             && !prose.contains('"')
             && !prose.contains("received")
+            && !prose.to_lowercase().contains("eof")
+            && (!message.starts_with("expected ") || message.contains(", found "))
             && prose
                 .split(|ch: char| !ch.is_alphanumeric())
                 .all(|word| !word.contains(char::is_lowercase) || !word.contains(char::is_uppercase))

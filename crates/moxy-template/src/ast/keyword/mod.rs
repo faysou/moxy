@@ -36,7 +36,10 @@ impl Parse for TmplKeyword {
             return Ok(Self::Match(<_ as Parse>::parse(parser)?));
         }
 
-        parser.error("expected template directive").into()
+        // The parser is at the `@`, so the error names the token after it
+        let after = parser.fork();
+        after.offset(1);
+        Err(after.expected("`if`, `for`, or `match` after `@`"))
     }
 
     fn skip(cursor: Cursor<'_>) -> Option<Cursor<'_>> {

@@ -78,7 +78,7 @@ fn bound<T: Parse + Into<Pattern>>(parser: &Parser) -> Result<Pattern, ParseErro
             const_keyword: constant.keyword,
             block: constant.block,
         }),
-        _ => return parser.error("expected a range bound").into(),
+        _ => return parser.error("expected range bound").into(),
     };
 
     Ok(Pattern::Range(Box::new(PatRange::parse_rest(

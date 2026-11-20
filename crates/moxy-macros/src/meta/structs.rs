@@ -37,7 +37,7 @@ pub fn expand(target: &moxy::ast::ItemStruct) -> TokenStream {
             let Some(name) = entry.path.as_ident() else {
                 return Err(::moxy::ast::ParseError::new(
                     ::moxy::token::Spanner::span(&entry),
-                    "expected a simple meta argument name",
+                    "expected simple meta argument name",
                 ));
             };
 

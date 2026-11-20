@@ -74,6 +74,33 @@ fn public_parse_rejects_trailing_tokens() {
     assert!(moxy::parse!("fn value" as Token![fn]).is_err());
 }
 
+// Nodes that parse a whole form before they reject it name the form they found
+#[test]
+fn a_rejected_form_is_named() {
+    use moxy::ast::{FromMeta, ItemTrait, Meta, PatOr};
+
+    let or = moxy::parse!("a" as PatOr).err().unwrap();
+    let alias = moxy::parse!("trait A = B;" as ItemTrait).err().unwrap();
+    let meta: Meta = moxy::parse!("a = 1").unwrap();
+    let flag = bool::from_meta(&meta).err().unwrap();
+
+    assert_eq!(or.message(), "expected or-pattern, found `a`");
+    assert_eq!(alias.message(), "expected trait, found trait alias");
+    assert_eq!(flag.message(), "expected boolean literal");
+}
+
+// A group without delimiters, which a stream from the compiler can hold, is
+// quoted by its first token
+#[test]
+fn an_error_quotes_a_group_without_delimiters_by_its_first_token() {
+    use moxy::token::Group;
+
+    let inner: TokenStream = "; ;".parse().unwrap();
+    let tokens = TokenStream::from_iter([TokenTree::Group(Group::new(Delim::None, inner))]);
+    let error = moxy::parse!(tokens as moxy::token::Ident).err().unwrap();
+    assert_eq!(error.message(), "expected identifier, found `; ...`");
+}
+
 // A message names what was expected and what was found, with code in
 // backticks, in the lexer and the parser alike
 #[test]
@@ -89,8 +116,18 @@ fn error_messages_name_what_was_expected_and_found() {
         ("struct S<T", "expected `>`, found end of input"),
         ("fn f() -> {}", "expected type, found `{}`"),
         ("fn f() { a b }", "expected `;`, found `b`"),
-        ("fn f() { x. }", "expected identifier, found end of input"),
         ("$", "unexpected `$`"),
+        (
+            "trait A { m!() }",
+            "expected `;` after a macro item in parentheses or brackets, found `}`",
+        ),
+        ("fn f() { x. }", "expected identifier, found `}`"),
+        ("struct S { a: }", "expected type, found `}`"),
+        ("fn f() { let x = ; }", "expected expression, found `;`"),
+        ("fn f() -> \"a`b\" {}", "expected type, found `` \"a`b\" ``"),
+        ("impl &A for B {}", "expected trait path, found `& A`"),
+        ("fn f() { x.1u8; }", "expected tuple index, found `1u8`"),
+        ("fn f(u8) {}", "expected parameter name, found `u8`"),
     ] {
         let error = moxy::parse!(source as moxy::ast::File)
             .err()
@@ -723,7 +760,7 @@ fn an_error_inside_a_list_of_items_is_reported_where_it_is() {
     let source = "fn f() {}\nstruct S { a: }";
     let error = moxy::parse!(source as moxy::ast::File).err().unwrap();
     assert_eq!(error.span().start().line(), 1);
-    assert_eq!(error.message(), "expected type, found end of input");
+    assert_eq!(error.message(), "expected type, found `}`");
 }
 
 // Runs `parse` on a worker thread and fails if it takes longer than a limit

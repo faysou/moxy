@@ -103,7 +103,8 @@ impl moxy::ast::Parse for MetaRule {
     fn parse(parser: &moxy::ast::Parser) -> Result<Self, moxy::ast::ParseError> {
         let meta = <moxy::ast::Meta as moxy::ast::Parse>::parse(parser)?;
         let Some(ident) = meta.path.as_ident() else {
-            return parser.error("expected a meta rule name").into();
+            let path = moxy::token::ToTokenStream::to_token_stream(&meta.path);
+            return moxy::ast::ParseError::new(meta.path.span(), format!("expected meta rule name, found `{path}`")).into();
         };
 
         match ident.text() {

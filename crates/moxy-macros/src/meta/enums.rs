@@ -27,7 +27,7 @@ pub fn expand(target: &moxy::ast::ItemEnum) -> TokenStream {
         let Some(name) = entry.path.as_ident() else {
             return Err(::moxy::ast::ParseError::new(
                 ::moxy::token::Spanner::span(&entry),
-                "expected a simple enum variant name",
+                "expected simple enum variant name",
             ));
         };
 
@@ -101,7 +101,7 @@ fn expand_named(ident: &Ident, fields: &[fields::Field], message: Option<&LitStr
             let Some(name) = entry.path.as_ident() else {
                 return Err(::moxy::ast::ParseError::new(
                     ::moxy::token::Spanner::span(&entry),
-                    "expected a simple meta argument name",
+                    "expected simple meta argument name",
                 ));
             };
 

@@ -39,7 +39,7 @@ pub fn expand(tokens: TokenStream) -> TokenStream {
         return object
             .attrs()
             .span()
-            .error("expected a `#[moxy(template { ... })]` attribute")
+            .error("expected `#[moxy(template { ... })]` attribute")
             .emit();
     };
 

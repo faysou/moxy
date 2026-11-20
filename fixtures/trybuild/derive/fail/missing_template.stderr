@@ -1,4 +1,4 @@
-error: expected a `#[moxy(template { ... })]` attribute
+error: expected `#[moxy(template { ... })]` attribute
  --> fixtures/trybuild/derive/fail/missing_template.rs:3:10
   |
 3 | #[derive(ToTokens)]

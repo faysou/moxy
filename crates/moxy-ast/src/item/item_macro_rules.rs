@@ -1,4 +1,4 @@
-use moxy_token::{Delim, Group, Ident, LexError, Span, Spanner, ToTokenStream, ToTokens, TokenStream, TokenTree};
+use moxy_token::{Delim, Group, Ident, Span, Spanner, ToTokenStream, ToTokens, TokenStream, TokenTree};
 
 use crate::*;
 
@@ -45,7 +45,7 @@ impl Parse for ItemMacroRules {
             }
 
             _ => {
-                return Err(LexError::new(parser.span()).message("expected macro body").into());
+                return Err(parser.expected("macro body"));
             }
         };
 
