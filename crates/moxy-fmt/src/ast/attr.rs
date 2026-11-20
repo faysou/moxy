@@ -60,7 +60,7 @@ impl Format for MetaContent {
                     _ => (),
                 };
 
-                v.tokens.format(f)?;
+                f.nest(|f| v.tokens.format(f))?;
 
                 match v.delim {
                     Delim::Paren => f.text(")"),
@@ -80,6 +80,7 @@ impl Format for MetaContent {
 
 impl Format for TokenStream {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
+        f.check_tokens(self)?;
         let mut previous: Option<String> = None;
 
         for token in self.iter() {

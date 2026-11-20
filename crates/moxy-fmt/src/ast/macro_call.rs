@@ -16,7 +16,11 @@ impl Format for MacroCall {
         };
 
         f.text(open)?;
-        f.text(self.tokens().to_token_stream())?;
+        f.nest(|f| {
+            let tokens = self.tokens().to_token_stream();
+            f.check_tokens(&tokens)?;
+            f.text(tokens)
+        })?;
         f.text(close)
     }
 }

@@ -58,6 +58,32 @@ impl TokenStream {
     pub fn to_vec(mut self) -> Vec<TokenTree> {
         std::mem::take(&mut self.0)
     }
+
+    /// Whether the stream's groups nest deeper than `levels`, as `[[x]]` nests
+    /// two. With [`MAX_DEPTH`](crate::MAX_DEPTH) it tells whether lexing the
+    /// stream's text would refuse it, for a stream built in code. The check
+    /// does not recurse, so it runs on a stream nested any depth.
+    pub fn nests_deeper_than(&self, levels: usize) -> bool {
+        let mut open = vec![self.0.iter()];
+
+        while let Some(trees) = open.last_mut() {
+            match trees.next() {
+                Some(TokenTree::Group(group)) => {
+                    if open.len() > levels {
+                        return true;
+                    }
+
+                    open.push(group.tokens.0.iter());
+                }
+                Some(_) => {}
+                None => {
+                    open.pop();
+                }
+            }
+        }
+
+        false
+    }
 }
 
 impl std::ops::Deref for TokenStream {

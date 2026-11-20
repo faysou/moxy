@@ -5,7 +5,7 @@ use crate::{FmtError, Format, Formatter};
 
 impl Format for Type {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
-        match self {
+        f.nest(|f| match self {
             Self::Never(_) => f.text("!"),
             Self::Infer(_) => f.text("_"),
             Self::Path(v) => v.format(f),
@@ -21,7 +21,7 @@ impl Format for Type {
             Self::Group(v) => v.elem.format(f),
             Self::Macro(v) => v.format(f),
             _ => Err(FmtError::unsupported("unsupported type variant")),
-        }
+        })
     }
 }
 

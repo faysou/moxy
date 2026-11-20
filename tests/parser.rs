@@ -798,6 +798,7 @@ where
     T: moxy::token::ToTokenStream + moxy::token::Spanner + Clone + PartialEq + std::fmt::Debug,
     T: moxy::fmt::Format + serde::Serialize + Walked,
 {
+    assert!(!node.nests_past_max_depth());
     let _ = node.to_token_stream();
     let _ = node.span();
     let mut copy = node.clone();
@@ -815,10 +816,12 @@ struct Walk;
 
 impl moxy::ast::VisitMut for Walk {}
 
-// A tree that both visitors walk from its root
+// A tree that both visitors walk from its root, and that the depth check
+// measures
 trait Walked {
     fn walk(&self);
     fn walk_mut(&mut self);
+    fn nests_past_max_depth(&self) -> bool;
 }
 
 macro_rules! walked {
@@ -830,6 +833,10 @@ macro_rules! walked {
 
             fn walk_mut(&mut self) {
                 moxy::ast::VisitMut::$visit_mut(&mut Walk, self);
+            }
+
+            fn nests_past_max_depth(&self) -> bool {
+                <$ty>::nests_past_max_depth(self)
             }
         })*
     };
@@ -853,6 +860,10 @@ impl Walked for moxy::ast::File {
         self.items
             .iter_mut()
             .for_each(|item| moxy::ast::VisitMut::visit_item_mut(&mut Walk, item));
+    }
+
+    fn nests_past_max_depth(&self) -> bool {
+        moxy::ast::File::nests_past_max_depth(self)
     }
 }
 
@@ -1342,4 +1353,138 @@ fn parsing_a_token_stream_borrows_it() {
 
     let expression: moxy::ast::Expr = moxy::parse!(tokens).unwrap();
     assert!(expression.is_binary_chain());
+}
+
+// A tree built in code: `seed` wrapped `n` times in a copy of the form of
+// `template`, whose child `place` returns, built without recursion
+fn built<T: Parse + Clone>(template: &str, seed: &str, n: usize, place: fn(&mut T) -> &mut T) -> T {
+    let template: T = moxy::parse!(template).unwrap();
+    let seed: T = moxy::parse!(seed).unwrap();
+
+    (0..n).fold(seed, |node, _| {
+        let mut outer = template.clone();
+        *place(&mut outer) = node;
+        outer
+    })
+}
+
+fn negated(expr: &mut moxy::ast::Expr) -> &mut moxy::ast::Expr {
+    let moxy::ast::Expr::Unary(unary) = expr else { panic!() };
+    &mut unary.expr
+}
+
+fn referenced(ty: &mut moxy::ast::Type) -> &mut moxy::ast::Type {
+    let moxy::ast::Type::Reference(reference) = ty else { panic!() };
+    &mut reference.elem
+}
+
+fn referenced_pattern(pattern: &mut moxy::ast::Pattern) -> &mut moxy::ast::Pattern {
+    let moxy::ast::Pattern::Reference(reference) = pattern else {
+        panic!()
+    };
+    &mut reference.pat
+}
+
+fn inner_block(block: &mut moxy::ast::StmtBlock) -> &mut moxy::ast::StmtBlock {
+    let moxy::ast::Stmt::Block(inner) = &mut block.stmts.inner[0] else {
+        panic!()
+    };
+    inner
+}
+
+#[test]
+fn a_tree_built_past_the_depth_limit_is_reported() {
+    use moxy::ast::{Expr, Pattern, StmtBlock, Type};
+
+    let message = format!("nesting is deeper than {} levels", moxy::token::MAX_DEPTH);
+    let (reported, formatted) = on_small_stack(move || {
+        let n = 100_000;
+        let expr = built::<Expr>("-x", "x", n, negated);
+        let ty = built::<Type>("&u8", "u8", n, referenced);
+        let pattern = built::<Pattern>("&x", "x", n, referenced_pattern);
+        let block = built::<StmtBlock>("{ {} }", "{ x }", n, inner_block);
+        let reported = [
+            expr.nests_past_max_depth(),
+            ty.nests_past_max_depth(),
+            pattern.nests_past_max_depth(),
+            block.nests_past_max_depth(),
+        ];
+        let formatted = moxy::fmt!(&expr).map_err(|error| error.to_string());
+
+        // Dropping them would recurse once per level
+        std::mem::forget((expr, ty, pattern, block));
+        (reported, formatted)
+    });
+
+    assert_eq!(reported, [true; 4]);
+    assert_eq!(formatted, Err(message));
+}
+
+// A tree counts half a level for each expression, type, pattern, item, block,
+// and token group nested in another, so it holds twice `MAX_DEPTH` of them at
+// the limit, and every traversal of it runs on a small stack
+#[test]
+fn a_tree_built_to_the_depth_limit_runs_every_traversal() {
+    use moxy::ast::{Expr, Pattern, StmtBlock, Type};
+
+    let nodes = 2 * moxy::token::MAX_DEPTH;
+    let limits = on_small_stack(move || {
+        // The seed is one node, or two for a block that holds an expression
+        let expr = |n| built::<Expr>("-x", "x", n, negated);
+        let ty = |n| built::<Type>("&u8", "u8", n, referenced);
+        let pattern = |n| built::<Pattern>("&x", "x", n, referenced_pattern);
+        let block = |n| built::<StmtBlock>("{ {} }", "{ x }", n, inner_block);
+        let limits = [
+            (expr(nodes - 1).nests_past_max_depth(), expr(nodes).nests_past_max_depth()),
+            (ty(nodes - 1).nests_past_max_depth(), ty(nodes).nests_past_max_depth()),
+            (
+                pattern(nodes - 1).nests_past_max_depth(),
+                pattern(nodes).nests_past_max_depth(),
+            ),
+            (
+                block(nodes - 2).nests_past_max_depth(),
+                block(nodes - 1).nests_past_max_depth(),
+            ),
+        ];
+
+        // Formatting counts the same nodes, so one past the limit fails
+        let formatted = [
+            moxy::fmt!(&expr(nodes)).is_err(),
+            moxy::fmt!(&ty(nodes)).is_err(),
+            moxy::fmt!(&pattern(nodes)).is_err(),
+            moxy::fmt!(&block(nodes - 1)).is_err(),
+        ];
+
+        traverse(expr(nodes - 1));
+        traverse(ty(nodes - 1));
+        traverse(pattern(nodes - 1));
+        traverse(block(nodes - 2));
+        (limits, formatted)
+    });
+
+    assert_eq!(limits, ([(false, true); 4], [true; 4]));
+}
+
+#[test]
+fn a_token_stream_built_past_the_depth_limit_is_reported() {
+    use moxy::token::Group;
+
+    let depth = moxy::token::MAX_DEPTH;
+    let lexed: TokenStream = "[[x]]".parse().unwrap();
+    let built = on_small_stack(move || {
+        let nested = |n: usize| {
+            (0..n).fold(TokenStream::new(), |stream, _| {
+                TokenStream::from_iter([TokenTree::Group(Group::new(Delim::Bracket, stream))])
+            })
+        };
+
+        [
+            nested(depth).nests_deeper_than(depth),
+            nested(depth + 1).nests_deeper_than(depth),
+            nested(100_000).nests_deeper_than(depth),
+        ]
+    });
+
+    assert_eq!((lexed.nests_deeper_than(1), lexed.nests_deeper_than(2)), (true, false));
+    assert_eq!(built, [false, true, true]);
 }

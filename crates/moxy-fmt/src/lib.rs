@@ -30,12 +30,16 @@ pub use node::*;
 
 use std::fmt::Write;
 
+use moxy_token::{MAX_DEPTH, MAX_NESTED_NODES, TokenStream};
+
 /// Format a value that implements [`Format`] into a `String`.
 ///
 /// Accepts an optional [`FmtConfig`] as a second argument. When omitted,
 /// [`FmtConfig::default`] is used.
 ///
-/// Returns `Result<String, FmtError>`.
+/// Returns `Result<String, FmtError>`. A tree built in code that nests more
+/// than [`MAX_NESTED_NODES`] nodes, which no parsed tree does, is an error
+/// instead of a stack overflow.
 ///
 /// The intended pipeline is `template!` → `parse!` → `fmt!`: generate tokens,
 /// parse them into an AST node, then format it.
@@ -96,6 +100,9 @@ pub struct Formatter {
     output: String,
     depth: usize,
     column: usize,
+    // The expressions, types, patterns, items, blocks, and token groups that
+    // nest around the node being formatted
+    nodes: usize,
 }
 
 impl Formatter {
@@ -106,6 +113,7 @@ impl Formatter {
             output: String::new(),
             depth: 0,
             column: 0,
+            nodes: 0,
         }
     }
 
@@ -165,6 +173,30 @@ impl Formatter {
 }
 
 impl Formatter {
+    // Formats a node nested in the ones around it, or reports a tree nested
+    // past `MAX_NESTED_NODES`, as a tree built in code can be, as its
+    // `nests_past_max_depth` counts it
+    pub(crate) fn nest(&mut self, format: impl FnOnce(&mut Self) -> Result<(), FmtError>) -> Result<(), FmtError> {
+        if self.nodes == MAX_NESTED_NODES {
+            return Err(too_deep());
+        }
+
+        self.nodes += 1;
+        let formatted = format(self);
+        self.nodes -= 1;
+        formatted
+    }
+
+    // Reports tokens whose groups nest past `MAX_NESTED_NODES` with the nodes
+    // around them, before their text, which recurses once per group, is written
+    pub(crate) fn check_tokens(&self, tokens: &TokenStream) -> Result<(), FmtError> {
+        if tokens.nests_deeper_than(MAX_NESTED_NODES - self.nodes) {
+            return Err(too_deep());
+        }
+
+        Ok(())
+    }
+
     pub fn write<T: Format>(&mut self, value: &T) -> Result<(), FmtError> {
         value.format(self)?;
         let nodes: Vec<_> = std::mem::take(&mut self.buffer);
@@ -309,4 +341,8 @@ impl std::fmt::Display for Mode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
     }
+}
+
+fn too_deep() -> FmtError {
+    FmtError::unsupported(format!("nesting is deeper than {MAX_DEPTH} levels"))
 }

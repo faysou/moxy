@@ -5,7 +5,7 @@ use crate::{FmtError, Format, Formatter};
 
 impl Format for Expr {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
-        match self {
+        f.nest(|f| match self {
             Self::Unary(v) => v.format(f),
             Self::BinaryChain(v) => v.format(f),
             Self::Block(v) => v.format(f),
@@ -40,9 +40,12 @@ impl Format for Expr {
             Self::Group(v) => v.format(f),
             Self::Macro(v) => v.format(f),
             Self::RawAddr(v) => v.format(f),
-            Self::Verbatim(v) => f.text(v),
+            Self::Verbatim(v) => {
+                f.check_tokens(v)?;
+                f.text(v)
+            }
             _ => Err(FmtError::unsupported("unsupported expression variant")),
-        }
+        })
     }
 }
 

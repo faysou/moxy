@@ -253,7 +253,7 @@ impl Format for UseGroup {
 
 impl Format for Item {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
-        match self {
+        f.nest(|f| match self {
             Self::Use(v) => v.format(f),
             Self::ExternCrate(v) => v.format(f),
             Self::Mod(v) => v.format(f),
@@ -272,7 +272,7 @@ impl Format for Item {
             Self::DeclMacro(v) => v.format(f),
             Self::ForeignMod(v) => v.format(f),
             _ => Err(FmtError::unsupported("unsupported item variant")),
-        }
+        })
     }
 }
 
@@ -720,7 +720,10 @@ impl Format for ItemMacroRules {
         f.text("macro_rules! ")?;
         self.ident.format(f)?;
         f.text(" { ")?;
-        f.text(&self.body.tokens)?;
+        f.nest(|f| {
+            f.check_tokens(&self.body.tokens)?;
+            f.text(&self.body.tokens)
+        })?;
         f.text(" }")
     }
 }
@@ -739,12 +742,18 @@ impl Format for ItemDeclMacro {
 
         if let Some(params) = &self.params {
             f.text("(")?;
-            f.text(&params.tokens)?;
+            f.nest(|f| {
+                f.check_tokens(&params.tokens)?;
+                f.text(&params.tokens)
+            })?;
             f.text(")")?;
         }
 
         f.text(" { ")?;
-        f.text(&self.body.tokens)?;
+        f.nest(|f| {
+            f.check_tokens(&self.body.tokens)?;
+            f.text(&self.body.tokens)
+        })?;
         f.text(" }")
     }
 }

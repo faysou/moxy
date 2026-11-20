@@ -5,7 +5,7 @@ use crate::{FmtError, Format, Formatter};
 
 impl Format for Pattern {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
-        match self {
+        f.nest(|f| match self {
             Self::Wild(v) => v.format(f),
             Self::Rest(v) => v.format(f),
             Self::Ident(v) => v.format(f),
@@ -25,7 +25,7 @@ impl Format for Pattern {
             Self::Box(v) => v.format(f),
             Self::Const(v) => v.format(f),
             _ => Err(FmtError::unsupported("unsupported pattern variant")),
-        }
+        })
     }
 }
 

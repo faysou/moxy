@@ -8,9 +8,20 @@ use std::cell::Cell;
 /// `proc_macro2` stream counts groups the same way:
 /// [`TryIntoTokenStream::try_into_token_stream`](crate::TryIntoTokenStream)
 /// returns that error, and `From` panics with it. Real source and macro
-/// bodies do not nest groups that deep. Token trees and syntax trees built by
-/// hand are not limited: cloning, comparing, printing, emitting, and dropping
-/// one recurse once per level.
+/// bodies do not nest groups that deep.
+///
+/// Token streams and syntax trees built in code are not limited. Dropping a
+/// token stream does not recurse, and
+/// [`TokenStream::nests_deeper_than`](crate::TokenStream::nests_deeper_than)
+/// checks its groups without recursing; cloning, comparing, printing, and
+/// converting one into a `proc_macro` or `proc_macro2` stream recurse once per
+/// group. With the `visit` feature, the `nests_past_max_depth` method of a
+/// file, item, statement, block, expression, type, or pattern checks a syntax
+/// tree against [`MAX_NESTED_NODES`], and formatting counts the same nodes and
+/// reports a tree past it as an error. Emitting, cloning, comparing,
+/// printing, serializing, visiting, and dropping a syntax tree recurse once
+/// per level of nesting and check nothing, so a tree that fails the check can
+/// overflow the stack.
 ///
 /// Parsing reports its own limit as "nesting is deeper than 144 levels". It
 /// counts each nested operand, group, block, pattern, type, generic argument,
@@ -46,6 +57,13 @@ use std::cell::Cell;
 /// smaller stack, such as a 1 MiB main thread on Windows, should parse on a
 /// thread with at least 2 MiB.
 pub const MAX_DEPTH: usize = 144;
+
+/// The most expressions, types, patterns, items, blocks, and token groups that
+/// nest in one another in a syntax tree that does not nest past
+/// [`MAX_DEPTH`]: such a tree counts half a level for each. The parser's
+/// weights depend on each form and its context, so a tree built in code is
+/// measured by its nodes instead; no tree the parser returns holds more.
+pub const MAX_NESTED_NODES: usize = 2 * MAX_DEPTH;
 
 thread_local! {
     static DEPTH: Cell<usize> = const { Cell::new(0) };
