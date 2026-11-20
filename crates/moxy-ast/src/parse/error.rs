@@ -56,6 +56,14 @@ impl ParseError {
         }
     }
 
+    /// An error spanning `node`, as [`ParseError::new_spanned`] makes, that
+    /// says the node is not the `expected` input and names its first token,
+    /// as "expected identifier, found `&`".
+    pub fn expected(node: impl ToTokens, expected: impl std::fmt::Display) -> Self {
+        let found = crate::parse::parser::found_node(&node.to_token_stream());
+        Self::new_spanned(node, format!("expected {expected}, found {found}"))
+    }
+
     pub fn span(&self) -> Span {
         self.span
     }

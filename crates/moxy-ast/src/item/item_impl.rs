@@ -32,7 +32,7 @@ impl ItemImpl {
             Type::Path(tp) => Ok(TraitRef { polarity, path: tp.path }),
             ty => Err(ParseError::new(
                 ty.span(),
-                format!("expected trait path, found {}", quoted(&ty.to_token_stream().to_string())),
+                format!("expected trait path, found {}", found_node(&ty)),
             )),
         }
     }

@@ -152,7 +152,7 @@ fn associated_items_take_parenthesized_arguments() {
     }
 
     // Only one segment without angle arguments takes them, as in rustc
-    for source in ["A<Item<B>(T): Clone>", "A<a::Item(T): Clone>"] {
+    for source in ["A<Item<B>(T): Clone>", "A<a::Item(T): Clone>", "A<f(..): Send>"] {
         assert!(moxy::parse!(source as Type).is_err(), "`{source}`");
     }
 }

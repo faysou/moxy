@@ -79,14 +79,32 @@ fn public_parse_rejects_trailing_tokens() {
 fn a_rejected_form_is_named() {
     use moxy::ast::{FromMeta, ItemTrait, Meta, PatOr};
 
-    let or = moxy::parse!("a" as PatOr).err().unwrap();
+    let or = moxy::parse!("a @ b" as PatOr).err().unwrap();
     let alias = moxy::parse!("trait A = B;" as ItemTrait).err().unwrap();
     let meta: Meta = moxy::parse!("a = 1").unwrap();
     let flag = bool::from_meta(&meta).err().unwrap();
 
     assert_eq!(or.message(), "expected or-pattern, found `a`");
     assert_eq!(alias.message(), "expected trait, found trait alias");
-    assert_eq!(flag.message(), "expected boolean literal");
+    assert_eq!(flag.message(), "expected boolean literal, found `1`");
+}
+
+// An error at the end of a group points at the delimiter that closes it, an
+// empty group included, and the error inside attribute arguments names it
+#[test]
+fn an_error_at_the_end_of_a_group_points_at_its_closing_delimiter() {
+    use moxy::ast::Meta;
+
+    let closing = |source: &str| {
+        let error = moxy::parse!(source as moxy::ast::File).err().unwrap();
+        (error.message().to_string(), error.span().start().column())
+    };
+    let meta: Meta = moxy::parse!("a(b =)").unwrap();
+    let nested = meta.for_each(|_| Ok(())).err().unwrap();
+
+    assert_eq!(closing("struct S { a: }"), ("expected type, found `}`".to_owned(), 14));
+    assert_eq!(closing("type T = [];"), ("expected type, found `]`".to_owned(), 10));
+    assert_eq!(nested.message(), "expected expression, found `)`");
 }
 
 // A group without delimiters, which a stream from the compiler can hold, is
@@ -99,6 +117,27 @@ fn an_error_quotes_a_group_without_delimiters_by_its_first_token() {
     let tokens = TokenStream::from_iter([TokenTree::Group(Group::new(Delim::None, inner))]);
     let error = moxy::parse!(tokens as moxy::token::Ident).err().unwrap();
     assert_eq!(error.message(), "expected identifier, found `; ...`");
+
+    let tokens = TokenStream::from_iter([TokenTree::Group(Group::new(Delim::None, TokenStream::new()))]);
+    let empty = moxy::parse!(tokens as moxy::token::Ident).err().unwrap();
+    let inner: TokenStream = "a".parse().unwrap();
+    let tokens = TokenStream::from_iter([TokenTree::Group(Group::new(Delim::None, inner))]);
+    let parser = moxy::ast::Parser::from_tokens(&tokens);
+    let group = parser.parse_group(Delim::None).unwrap();
+    group.advance();
+    let end = group.expected("identifier");
+    let none = TokenStream::new();
+
+    assert_eq!(empty.message(), "expected identifier, found empty group");
+    assert_eq!(end.message(), "expected identifier, found end of group");
+    assert_eq!(
+        moxy::ast::Parser::from_tokens(&none)
+            .parse_group(Delim::None)
+            .err()
+            .unwrap()
+            .message(),
+        "expected group without delimiters, found end of input"
+    );
 }
 
 // A message names what was expected and what was found, with code in
@@ -125,7 +164,10 @@ fn error_messages_name_what_was_expected_and_found() {
         ("struct S { a: }", "expected type, found `}`"),
         ("fn f() { let x = ; }", "expected expression, found `;`"),
         ("fn f() -> \"a`b\" {}", "expected type, found `` \"a`b\" ``"),
-        ("impl &A for B {}", "expected trait path, found `& A`"),
+        ("impl &A for B {}", "expected trait path, found `&`"),
+        ("fn f(&u8) {}", "expected parameter name, found `&`"),
+        ("type T = [];", "expected type, found `]`"),
+        ("fn f() { 1e`; }", "expected at least one digit in exponent, found `` ` ``"),
         ("fn f() { x.1u8; }", "expected tuple index, found `1u8`"),
         ("fn f(u8) {}", "expected parameter name, found `u8`"),
     ] {
@@ -133,6 +175,7 @@ fn error_messages_name_what_was_expected_and_found() {
             .err()
             .unwrap_or_else(|| panic!("`{source}` parsed"));
         assert_eq!(error.message(), message, "`{source}`");
+        assert!(super::differential::follows_style(message), "`{message}`");
     }
 }
 

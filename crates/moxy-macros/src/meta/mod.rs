@@ -66,11 +66,16 @@ pub fn expand(tokens: TokenStream) -> TokenStream {
         impl {{ impl_generics }} ::moxy::ast::FromMeta for {{ ident }} {{ type_generics }} {{ where_clause }} {
             fn from_meta(meta: &::moxy::ast::Meta) -> Result<Self, ::moxy::ast::ParseError> {
                 let parser = match &meta.content {
-                    ::moxy::ast::MetaContent::List(group) => &::moxy::ast::Parser::from_tokens(&group.tokens),
-                    _ => return Err(::moxy::ast::ParseError::new(
-                        ::moxy::token::Spanner::span(&meta.path),
-                        "expected parenthesized meta arguments",
-                    )),
+                    ::moxy::ast::MetaContent::List(group) => &::moxy::ast::Parser::from_group(group),
+                    ::moxy::ast::MetaContent::Expr { eq, .. } => {
+                        return Err(::moxy::ast::ParseError::expected(eq, "parenthesized meta arguments"));
+                    }
+                    ::moxy::ast::MetaContent::Unit => {
+                        return Err(::moxy::ast::ParseError::new_spanned(
+                            &meta.path,
+                            "expected parenthesized meta arguments, found end of input",
+                        ));
+                    }
                 };
                 {{ body }}
             }

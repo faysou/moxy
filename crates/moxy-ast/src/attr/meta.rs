@@ -31,7 +31,7 @@ impl Meta {
             return ParseError::new(self.span(), "expected delimited list, as in `name(...)`").into();
         };
 
-        let parser = Parser::from_tokens(&group.tokens);
+        let parser = Parser::from_group(group);
 
         while Path::peek(parser.cursor()) {
             let meta = <_ as Parse>::parse(&parser)?;
@@ -212,11 +212,11 @@ impl FromMeta for bool {
                     lit: Lit::Bool(value), ..
                 }) = Expr::parse(&Parser::from_tokens(expr))?
                 else {
-                    return ParseError::new(meta.span(), "expected boolean literal").into();
+                    return expected_value(meta, "boolean literal").into();
                 };
                 Ok(value.value())
             }
-            _ => ParseError::new(meta.span(), "expected boolean literal").into(),
+            _ => expected_value(meta, "boolean literal").into(),
         }
     }
 }
@@ -224,13 +224,13 @@ impl FromMeta for bool {
 impl FromMeta for String {
     fn from_meta(meta: &Meta) -> Result<Self, ParseError> {
         let MetaContent::Expr { expr, .. } = &meta.content else {
-            return ParseError::new(meta.span(), "expected string literal").into();
+            return expected_value(meta, "string literal").into();
         };
         let Expr::Lit(ExprLit {
             lit: Lit::Str(value), ..
         }) = Expr::parse(&Parser::from_tokens(expr))?
         else {
-            return ParseError::new(meta.span(), "expected string literal").into();
+            return expected_value(meta, "string literal").into();
         };
         Ok(value.value().to_owned())
     }
@@ -239,13 +239,13 @@ impl FromMeta for String {
 impl FromMeta for char {
     fn from_meta(meta: &Meta) -> Result<Self, ParseError> {
         let MetaContent::Expr { expr, .. } = &meta.content else {
-            return ParseError::new(meta.span(), "expected character literal").into();
+            return expected_value(meta, "character literal").into();
         };
         let Expr::Lit(ExprLit {
             lit: Lit::Char(value), ..
         }) = Expr::parse(&Parser::from_tokens(expr))?
         else {
-            return ParseError::new(meta.span(), "expected character literal").into();
+            return expected_value(meta, "character literal").into();
         };
         Ok(value.value())
     }
@@ -254,13 +254,13 @@ impl FromMeta for char {
 impl FromMeta for u8 {
     fn from_meta(meta: &Meta) -> Result<Self, ParseError> {
         let MetaContent::Expr { expr, .. } = &meta.content else {
-            return ParseError::new(meta.span(), "expected integer literal").into();
+            return expected_value(meta, "integer literal").into();
         };
         let Expr::Lit(ExprLit {
             lit: Lit::Int(value), ..
         }) = Expr::parse(&Parser::from_tokens(expr))?
         else {
-            return ParseError::new(meta.span(), "expected integer literal").into();
+            return expected_value(meta, "integer literal").into();
         };
         let value = value.value();
         u8::try_from(value).map_err(|_| ParseError::new(meta.span(), "integer out of range for `u8`"))
@@ -270,13 +270,13 @@ impl FromMeta for u8 {
 impl FromMeta for u16 {
     fn from_meta(meta: &Meta) -> Result<Self, ParseError> {
         let MetaContent::Expr { expr, .. } = &meta.content else {
-            return ParseError::new(meta.span(), "expected integer literal").into();
+            return expected_value(meta, "integer literal").into();
         };
         let Expr::Lit(ExprLit {
             lit: Lit::Int(value), ..
         }) = Expr::parse(&Parser::from_tokens(expr))?
         else {
-            return ParseError::new(meta.span(), "expected integer literal").into();
+            return expected_value(meta, "integer literal").into();
         };
         let value = value.value();
         u16::try_from(value).map_err(|_| ParseError::new(meta.span(), "integer out of range for `u16`"))
@@ -286,13 +286,13 @@ impl FromMeta for u16 {
 impl FromMeta for u32 {
     fn from_meta(meta: &Meta) -> Result<Self, ParseError> {
         let MetaContent::Expr { expr, .. } = &meta.content else {
-            return ParseError::new(meta.span(), "expected integer literal").into();
+            return expected_value(meta, "integer literal").into();
         };
         let Expr::Lit(ExprLit {
             lit: Lit::Int(value), ..
         }) = Expr::parse(&Parser::from_tokens(expr))?
         else {
-            return ParseError::new(meta.span(), "expected integer literal").into();
+            return expected_value(meta, "integer literal").into();
         };
         let value = value.value();
         u32::try_from(value).map_err(|_| ParseError::new(meta.span(), "integer out of range for `u32`"))
@@ -302,13 +302,13 @@ impl FromMeta for u32 {
 impl FromMeta for u64 {
     fn from_meta(meta: &Meta) -> Result<Self, ParseError> {
         let MetaContent::Expr { expr, .. } = &meta.content else {
-            return ParseError::new(meta.span(), "expected integer literal").into();
+            return expected_value(meta, "integer literal").into();
         };
         let Expr::Lit(ExprLit {
             lit: Lit::Int(value), ..
         }) = Expr::parse(&Parser::from_tokens(expr))?
         else {
-            return ParseError::new(meta.span(), "expected integer literal").into();
+            return expected_value(meta, "integer literal").into();
         };
         let value = value.value();
         u64::try_from(value).map_err(|_| ParseError::new(meta.span(), "integer out of range for `u64`"))
@@ -318,13 +318,13 @@ impl FromMeta for u64 {
 impl FromMeta for u128 {
     fn from_meta(meta: &Meta) -> Result<Self, ParseError> {
         let MetaContent::Expr { expr, .. } = &meta.content else {
-            return ParseError::new(meta.span(), "expected integer literal").into();
+            return expected_value(meta, "integer literal").into();
         };
         let Expr::Lit(ExprLit {
             lit: Lit::Int(value), ..
         }) = Expr::parse(&Parser::from_tokens(expr))?
         else {
-            return ParseError::new(meta.span(), "expected integer literal").into();
+            return expected_value(meta, "integer literal").into();
         };
         Ok(value.value())
     }
@@ -333,13 +333,13 @@ impl FromMeta for u128 {
 impl FromMeta for usize {
     fn from_meta(meta: &Meta) -> Result<Self, ParseError> {
         let MetaContent::Expr { expr, .. } = &meta.content else {
-            return ParseError::new(meta.span(), "expected integer literal").into();
+            return expected_value(meta, "integer literal").into();
         };
         let Expr::Lit(ExprLit {
             lit: Lit::Int(value), ..
         }) = Expr::parse(&Parser::from_tokens(expr))?
         else {
-            return ParseError::new(meta.span(), "expected integer literal").into();
+            return expected_value(meta, "integer literal").into();
         };
         let value = value.value();
         usize::try_from(value).map_err(|_| ParseError::new(meta.span(), "integer out of range for `usize`"))
@@ -349,7 +349,7 @@ impl FromMeta for usize {
 impl FromMeta for i8 {
     fn from_meta(meta: &Meta) -> Result<Self, ParseError> {
         let MetaContent::Expr { expr, .. } = &meta.content else {
-            return ParseError::new(meta.span(), "expected integer literal").into();
+            return expected_value(meta, "integer literal").into();
         };
         let expr = Expr::parse(&Parser::from_tokens(expr))?;
         let value = match expr {
@@ -366,7 +366,7 @@ impl FromMeta for i8 {
             },
             _ => None,
         }
-        .ok_or_else(|| ParseError::new(meta.span(), "expected integer literal"))?;
+        .ok_or_else(|| expected_value(meta, "integer literal"))?;
         i8::try_from(value).map_err(|_| ParseError::new(meta.span(), "integer out of range for `i8`"))
     }
 }
@@ -374,7 +374,7 @@ impl FromMeta for i8 {
 impl FromMeta for i16 {
     fn from_meta(meta: &Meta) -> Result<Self, ParseError> {
         let MetaContent::Expr { expr, .. } = &meta.content else {
-            return ParseError::new(meta.span(), "expected integer literal").into();
+            return expected_value(meta, "integer literal").into();
         };
         let expr = Expr::parse(&Parser::from_tokens(expr))?;
         let value = match expr {
@@ -391,7 +391,7 @@ impl FromMeta for i16 {
             },
             _ => None,
         }
-        .ok_or_else(|| ParseError::new(meta.span(), "expected integer literal"))?;
+        .ok_or_else(|| expected_value(meta, "integer literal"))?;
         i16::try_from(value).map_err(|_| ParseError::new(meta.span(), "integer out of range for `i16`"))
     }
 }
@@ -399,7 +399,7 @@ impl FromMeta for i16 {
 impl FromMeta for i32 {
     fn from_meta(meta: &Meta) -> Result<Self, ParseError> {
         let MetaContent::Expr { expr, .. } = &meta.content else {
-            return ParseError::new(meta.span(), "expected integer literal").into();
+            return expected_value(meta, "integer literal").into();
         };
         let expr = Expr::parse(&Parser::from_tokens(expr))?;
         let value = match expr {
@@ -416,7 +416,7 @@ impl FromMeta for i32 {
             },
             _ => None,
         }
-        .ok_or_else(|| ParseError::new(meta.span(), "expected integer literal"))?;
+        .ok_or_else(|| expected_value(meta, "integer literal"))?;
         i32::try_from(value).map_err(|_| ParseError::new(meta.span(), "integer out of range for `i32`"))
     }
 }
@@ -424,7 +424,7 @@ impl FromMeta for i32 {
 impl FromMeta for i64 {
     fn from_meta(meta: &Meta) -> Result<Self, ParseError> {
         let MetaContent::Expr { expr, .. } = &meta.content else {
-            return ParseError::new(meta.span(), "expected integer literal").into();
+            return expected_value(meta, "integer literal").into();
         };
         let expr = Expr::parse(&Parser::from_tokens(expr))?;
         let value = match expr {
@@ -441,7 +441,7 @@ impl FromMeta for i64 {
             },
             _ => None,
         }
-        .ok_or_else(|| ParseError::new(meta.span(), "expected integer literal"))?;
+        .ok_or_else(|| expected_value(meta, "integer literal"))?;
         i64::try_from(value).map_err(|_| ParseError::new(meta.span(), "integer out of range for `i64`"))
     }
 }
@@ -449,7 +449,7 @@ impl FromMeta for i64 {
 impl FromMeta for i128 {
     fn from_meta(meta: &Meta) -> Result<Self, ParseError> {
         let MetaContent::Expr { expr, .. } = &meta.content else {
-            return ParseError::new(meta.span(), "expected integer literal").into();
+            return expected_value(meta, "integer literal").into();
         };
         let expr = Expr::parse(&Parser::from_tokens(expr))?;
         match expr {
@@ -463,7 +463,7 @@ impl FromMeta for i128 {
                     lit: Lit::Int(value), ..
                 }) = *expr
                 else {
-                    return ParseError::new(meta.span(), "expected integer literal").into();
+                    return expected_value(meta, "integer literal").into();
                 };
                 if value.value() == i128::MAX as u128 + 1 {
                     Ok(i128::MIN)
@@ -474,7 +474,7 @@ impl FromMeta for i128 {
                         .ok_or_else(|| ParseError::new(meta.span(), "integer out of range for `i128`"))
                 }
             }
-            _ => ParseError::new(meta.span(), "expected integer literal").into(),
+            _ => expected_value(meta, "integer literal").into(),
         }
     }
 }
@@ -482,7 +482,7 @@ impl FromMeta for i128 {
 impl FromMeta for isize {
     fn from_meta(meta: &Meta) -> Result<Self, ParseError> {
         let MetaContent::Expr { expr, .. } = &meta.content else {
-            return ParseError::new(meta.span(), "expected integer literal").into();
+            return expected_value(meta, "integer literal").into();
         };
         let expr = Expr::parse(&Parser::from_tokens(expr))?;
         let value = match expr {
@@ -499,7 +499,7 @@ impl FromMeta for isize {
             },
             _ => None,
         }
-        .ok_or_else(|| ParseError::new(meta.span(), "expected integer literal"))?;
+        .ok_or_else(|| expected_value(meta, "integer literal"))?;
         isize::try_from(value).map_err(|_| ParseError::new(meta.span(), "integer out of range for `isize`"))
     }
 }
@@ -507,7 +507,7 @@ impl FromMeta for isize {
 impl FromMeta for f32 {
     fn from_meta(meta: &Meta) -> Result<Self, ParseError> {
         let MetaContent::Expr { expr, .. } = &meta.content else {
-            return ParseError::new(meta.span(), "expected float literal").into();
+            return expected_value(meta, "float literal").into();
         };
         let expr = Expr::parse(&Parser::from_tokens(expr))?;
         let (negative, expr) = match expr {
@@ -520,7 +520,7 @@ impl FromMeta for f32 {
             lit: Lit::Float(value), ..
         }) = expr
         else {
-            return ParseError::new(meta.span(), "expected float literal").into();
+            return expected_value(meta, "float literal").into();
         };
         let value = if negative { -value.as_f64() } else { value.as_f64() };
         if !value.is_finite() || value < f32::MIN as f64 || value > f32::MAX as f64 {
@@ -533,7 +533,7 @@ impl FromMeta for f32 {
 impl FromMeta for f64 {
     fn from_meta(meta: &Meta) -> Result<Self, ParseError> {
         let MetaContent::Expr { expr, .. } = &meta.content else {
-            return ParseError::new(meta.span(), "expected float literal").into();
+            return expected_value(meta, "float literal").into();
         };
         let expr = Expr::parse(&Parser::from_tokens(expr))?;
         let (negative, expr) = match expr {
@@ -546,7 +546,7 @@ impl FromMeta for f64 {
             lit: Lit::Float(value), ..
         }) = expr
         else {
-            return ParseError::new(meta.span(), "expected float literal").into();
+            return expected_value(meta, "float literal").into();
         };
         let value = if negative { -value.as_f64() } else { value.as_f64() };
         value
@@ -554,4 +554,16 @@ impl FromMeta for f64 {
             .then_some(value)
             .ok_or_else(|| ParseError::new(meta.span(), "float out of range for `f64`"))
     }
+}
+
+// The error for a meta whose value is not the `expected` one, naming what
+// follows its name: nothing, a group, or the value's first token
+fn expected_value(meta: &Meta, expected: &str) -> ParseError {
+    let found = match &meta.content {
+        MetaContent::Unit => "end of input".to_owned(),
+        MetaContent::List(group) => found_node(group),
+        MetaContent::Expr { expr, .. } => found_node(expr),
+    };
+
+    ParseError::new(meta.span(), format!("expected {expected}, found {found}"))
 }

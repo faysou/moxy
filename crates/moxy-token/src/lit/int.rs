@@ -495,7 +495,10 @@ fn scan(c: Cursor<'_>) -> Result<Cursor<'_>, LexError> {
 // in `1e` or `1em`, which names what follows instead
 pub(super) fn exponent_without_digits(cursor: Cursor<'_>) -> String {
     match cursor.skip_while(|ch| ch == '_').first() {
-        Some(ch) => format!("expected at least one digit in exponent, found `{ch}`"),
+        Some(ch) => format!(
+            "expected at least one digit in exponent, found {}",
+            crate::__private::quoted(&ch.to_string())
+        ),
         None => "expected at least one digit in exponent, found end of input".to_owned(),
     }
 }

@@ -36,7 +36,7 @@ impl Parse for PatOr {
             Pattern::Or(value) => Ok(value),
             other => Err(ParseError::new(
                 other.span(),
-                format!("expected or-pattern, found {}", quoted(&other.to_token_stream().to_string())),
+                format!("expected or-pattern, found {}", found_node(&other)),
             )),
         }
     }

@@ -326,4 +326,14 @@ macro_rules! Token {
 #[doc(hidden)]
 pub mod __private {
     pub use crate::lex::depth::{Depth, Subtree, Watch};
+
+    /// Code as an error message quotes it: in backticks, or in double ones with
+    /// spaces when it holds a backtick, as a string literal can.
+    pub fn quoted(code: &str) -> String {
+        if code.contains('`') {
+            format!("`` {code} ``")
+        } else {
+            format!("`{code}`")
+        }
+    }
 }

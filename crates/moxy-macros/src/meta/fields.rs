@@ -32,7 +32,7 @@ impl Field {
                 return Err(moxy::ast::ParseError::new(attr.span(), "expected `#[meta(...)]`"));
             };
 
-            let parser = moxy::ast::Parser::from_tokens(&group.tokens);
+            let parser = moxy::ast::Parser::from_group(group);
             let rules = List::<MetaRule, moxy::ast::Token![,]>::parse_all(&parser)?;
 
             for rule in rules {

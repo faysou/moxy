@@ -8,23 +8,23 @@ use crate::{Cursor, Parse, ParseError};
 #[derive(Clone)]
 pub struct Parser<'a> {
     cursor: Cell<Cursor<'a>>,
-    // The delimiter that closes the group the parser reads, which an error at
-    // the end of its tokens names
-    close: Option<Delim>,
+    // The delimiter of the group the parser reads and the span of its closing
+    // delimiter, which an error at the end of its tokens names and points at
+    group: Option<(Delim, Span)>,
 }
 
 impl<'a> Parser<'a> {
     pub fn from_tokens(tokens: &'a TokenStream) -> Self {
         Self {
             cursor: Cell::new(Cursor::from_tokens(tokens)),
-            close: None,
+            group: None,
         }
     }
 
     pub fn from_cursor(cursor: Cursor<'a>) -> Self {
         Self {
             cursor: Cell::new(cursor),
-            close: None,
+            group: None,
         }
     }
 
@@ -51,38 +51,51 @@ impl<'a> Parser<'a> {
     /// An error at the current token, which is not the `expected` input, that
     /// names the token or the end of the input, as "expected `;`, found `}`".
     pub fn expected(&self, expected: impl std::fmt::Display) -> ParseError {
-        self.error(format!("expected {expected}, found {}", self.found()))
+        ParseError::new(self.found_span(), format!("expected {expected}, found {}", self.found()))
     }
 
     /// An error at the current token, which no input expects, as "unexpected
     /// `@`".
     pub fn unexpected(&self) -> ParseError {
-        self.error(format!("unexpected {}", self.found()))
+        ParseError::new(self.found_span(), format!("unexpected {}", self.found()))
     }
 
     // The current token as a message quotes it: at the end of a group's
     // tokens, the delimiter that closes it, or else the end of the input
     fn found(&self) -> String {
-        match (self.curr(), self.close) {
-            (Some(token), _) => quoted(&received(token)),
-            (None, Some(close)) => quoted(&close.close().to_string()),
+        match (self.curr(), self.group) {
+            (Some(token), _) => match received(token) {
+                text if text.is_empty() => "empty group".to_owned(),
+                text => quoted(&text),
+            },
+            (None, Some((Delim::None, _))) => "end of group".to_owned(),
+            (None, Some((delim, _))) => quoted(&delim.close().to_string()),
             (None, None) => "end of input".to_owned(),
         }
     }
 
-    // A parser over the tokens of `group`, which knows the delimiter that
-    // closes them
-    fn in_group(group: &'a moxy_token::Group) -> Self {
+    // Where the current token is, or at the end of a delimited group's tokens
+    // the delimiter that closes it
+    fn found_span(&self) -> Span {
+        match (self.curr(), self.group) {
+            (None, Some((delim, close))) if delim != Delim::None => close,
+            _ => self.span(),
+        }
+    }
+
+    /// A parser over the tokens of `group`, which names and points at the
+    /// group's closing delimiter in an error at the end of its tokens.
+    pub fn from_group(group: &'a moxy_token::Group) -> Self {
         Self {
             cursor: Cell::new(Cursor::from_tokens(&group.tokens)),
-            close: (group.delim != Delim::None).then_some(group.delim),
+            group: Some((group.delim, group.span.close())),
         }
     }
 
     pub fn fork(&self) -> Self {
         Self {
             cursor: self.cursor.clone(),
-            close: self.close,
+            group: self.group,
         }
     }
 
@@ -188,9 +201,9 @@ impl<'a> Parser<'a> {
         match self.cursor().curr() {
             Some(TokenTree::Group(group)) if group.delim == delim => {
                 self.advance();
-                Ok(Self::in_group(group))
+                Ok(Self::from_group(group))
             }
-            _ => Err(self.expected(format_args!("`{}`", delim.open()))),
+            _ => Err(self.expected(delim_name(delim))),
         }
     }
 
@@ -198,9 +211,9 @@ impl<'a> Parser<'a> {
         match self.cursor().curr() {
             Some(TokenTree::Group(group)) if group.delim == delim => {
                 self.advance();
-                Ok((group.span, Self::in_group(group)))
+                Ok((group.span, Self::from_group(group)))
             }
-            _ => Err(self.expected(format_args!("`{}`", delim.open()))),
+            _ => Err(self.expected(delim_name(delim))),
         }
     }
 
@@ -233,18 +246,31 @@ pub(crate) fn received(token: &TokenTree) -> String {
     }
 }
 
-// Code in a message in backticks, or in double ones with spaces when it holds a
-// backtick, as a string literal can
-pub(crate) fn quoted(code: &str) -> String {
-    if code.contains('`') {
-        format!("`` {code} ``")
-    } else {
-        format!("`{code}`")
+// A node a message names as found, by its first token, so the message stays
+// short and spaced as written
+pub(crate) fn found_node(node: &impl moxy_token::ToTokenStream) -> String {
+    match node.to_token_stream().first() {
+        Some(token) => quoted(&received(token)),
+        None => "end of input".to_owned(),
     }
+}
+
+// Code in a message in backticks, or in double ones with spaces when it holds
+// a backtick
+pub(crate) fn quoted(code: &str) -> String {
+    moxy_token::__private::quoted(code)
 }
 
 impl<'a> ToTokens for Parser<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         self.cursor.get().to_tokens(tokens);
+    }
+}
+
+// How a message names a delimited group that it expects
+fn delim_name(delim: Delim) -> String {
+    match delim {
+        Delim::None => "group without delimiters".to_owned(),
+        delim => format!("`{}`", delim.open()),
     }
 }

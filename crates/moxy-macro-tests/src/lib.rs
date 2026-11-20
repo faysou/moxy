@@ -51,7 +51,7 @@ pub fn derive_range(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let args = match item.parse_meta::<RangeArgs>("range") {
         Ok(Some(args)) => args,
         Ok(None) => {
-            return moxy::ast::ParseError::new(item.ident.span(), "expected a range attribute")
+            return moxy::ast::ParseError::new(item.ident.span(), "expected `#[range(...)]` attribute")
                 .to_compile_error()
                 .into();
         }

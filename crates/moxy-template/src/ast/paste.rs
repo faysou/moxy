@@ -104,7 +104,10 @@ impl PasteNode {
 
                 match Ident::lex(&text) {
                     Ok(id) => Ok(TokenStream::from(vec![id.with_span(*span).into_token_tree()])),
-                    Err(_) => Err(ParseError::new(*span, format!("expected identifier, found `{text}`"))),
+                    Err(_) => Err(ParseError::new(
+                        *span,
+                        format!("expected identifier, found {}", moxy_token::__private::quoted(&text)),
+                    )),
                 }
             }
         }

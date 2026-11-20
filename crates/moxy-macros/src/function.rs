@@ -45,7 +45,7 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> TokenStream {
             {
                 ident.clone()
             } else {
-                return moxy::ast::ParseError::new(expr.span(), "expected string literal or identifier").to_compile_error();
+                return moxy::ast::ParseError::expected(&expr, "string literal or identifier").to_compile_error();
             };
         }
     }
