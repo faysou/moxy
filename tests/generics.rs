@@ -349,3 +349,26 @@ fn field_expression_and_pattern_attributes_stay_on_their_line() {
         assert_eq!(moxy::fmt!(&item).unwrap(), formatted, "`{source}`");
     }
 }
+
+// As rustfmt does: an attribute of a match arm, a struct literal or pattern
+// field, or a statement takes its own line, and one of an element that is
+// itself inline, as a call argument, stays on its line
+#[test]
+fn attributes_take_their_own_line_where_rustfmt_puts_them() {
+    for (source, formatted) in [
+        (
+            "fn f() { match x { #[a] 1 => {} } }",
+            "fn f() {\n\tmatch x {\n\t\t#[a]\n\t\t1 => {},\n\t}\n}",
+        ),
+        ("fn f() { S { #[a] f: 1 }; }", "fn f() {\n\tS {\n\t\t#[a]\n\t\tf: 1,\n\t};\n}"),
+        (
+            "fn f() { let S { #[a] f } = x; }",
+            "fn f() {\n\tlet S {\n\t\t#[a]\n\t\tf,\n\t} = x;\n}",
+        ),
+        ("fn f() { #[allow(x)] foo(); }", "fn f() {\n\t#[allow(x)]\n\tfoo();\n}"),
+        ("fn f() { g(#[a] x); }", "fn f() {\n\tg(#[a] x);\n}"),
+    ] {
+        let item: Item = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        assert_eq!(moxy::fmt!(&item).unwrap(), formatted, "`{source}`");
+    }
+}

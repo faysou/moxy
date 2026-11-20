@@ -126,7 +126,7 @@ impl Format for PatStruct {
 
 impl Format for PatField {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
-        super::attr::inline_attrs(&self.attrs, f)?;
+        self.attrs.format(f)?;
 
         if self.is_shorthand() {
             self.pat.format(f)

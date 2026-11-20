@@ -124,7 +124,7 @@ impl Format for ExprStruct {
 
 impl Format for FieldValue {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
-        super::attr::inline_attrs(&self.attrs, f)?;
+        self.attrs.format(f)?;
 
         if self.is_shorthand() {
             self.member.format(f)
@@ -527,7 +527,7 @@ impl Format for ExprMatch {
 
 impl Format for MatchArm {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
-        super::attr::inline_attrs(&self.attrs, f)?;
+        self.attrs.format(f)?;
         self.pat.format(f)?;
 
         if let Some(guard) = &self.guard {
