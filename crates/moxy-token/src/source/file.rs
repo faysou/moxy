@@ -79,10 +79,15 @@ impl Source {
             Ok(line) => line,
         };
         let line_start = self.lines[line];
-        let column = self
-            .text
-            .get(line_start..index)
-            .map_or(index - line_start, |text| text.chars().count());
+        let column = self.text.get(line_start..index).map_or(index - line_start, |text| {
+            // A byte order mark starts the text and takes no column
+            let text = if line == 0 {
+                text.strip_prefix('\u{feff}').unwrap_or(text)
+            } else {
+                text
+            };
+            text.chars().count()
+        });
 
         Location::new(index, line, column)
     }

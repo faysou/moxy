@@ -20,8 +20,9 @@ thread_local! {
 pub struct SourceMap {
     sources: Vec<Source>,
     generation: NonZeroU32,
-    // The first position the next source can take
-    next: usize,
+    // The first position the next source can take, which the arithmetic keeps
+    // in 64 bits so it cannot wrap on a 32-bit target
+    next: u64,
 }
 
 impl SourceMap {
@@ -45,7 +46,7 @@ impl SourceMap {
     /// this thread since it was made.
     pub fn scope() -> SourceScope {
         SourceScope {
-            len: Self::with(|sm| sm.len()),
+            mark: Self::with(|sm| (sm.generation, sm.next)),
             thread: PhantomData,
         }
     }
@@ -110,19 +111,29 @@ impl SourceMap {
         (fr.start <= sr.start && sr.end <= fr.end).then_some(index)
     }
 
+    /// Adds a source and returns the positions it takes.
+    ///
+    /// # Panics
+    ///
+    /// Panics on a text of `u32::MAX` bytes or more, which 32-bit positions
+    /// cannot hold; the lexer refuses such a text before it gets here.
     pub fn push(&mut self, src: impl Into<String>) -> Span {
         let text = src.into();
+        let len = u64::try_from(text.len()).unwrap_or(u64::MAX);
+        assert!(len < u64::from(u32::MAX), "a source of 4 GiB or more has no 32-bit positions");
 
-        if self.next + text.len() > u32::MAX as usize {
+        // The last position stays free, so a span one past the end of a
+        // source still fits
+        if self.next + len >= u64::from(u32::MAX) {
             self.generation = self.generation.saturating_add(1);
             self.next = 0;
         }
 
-        let src = Source::new(self.generation, self.next, text);
+        let src = Source::new(self.generation, self.next as usize, text);
         let span = src.span();
         // One position between sources keeps a span that ends one source,
         // such as the end of its input, out of the next
-        self.next = span.byte_range().end + 1;
+        self.next = span.byte_range().end as u64 + 1;
         self.sources.push(src);
         span
     }
@@ -144,24 +155,55 @@ impl Default for SourceMap {
 /// [`end`](crate::Span::end) are at line 0 and column 0, and
 /// [`SourceMap::find`] returns `None`. That includes the tokens of a
 /// `template!` literal that were first lexed inside the scope, which each
-/// thread lexes once and keeps. Scopes nest: an inner scope releases only
-/// what was lexed inside it.
+/// thread lexes once and keeps.
+///
+/// A scope releases what was lexed after it was made, so scopes may drop in
+/// any order: an inner scope releases only what was lexed inside it, and an
+/// outer one dropped first releases the inner one's sources as well. A scope
+/// dropped while the map is borrowed, as inside [`SourceMap::with`], or while
+/// its thread ends, releases nothing.
 #[must_use = "a scope releases its sources when it is dropped"]
 #[derive(Debug)]
 pub struct SourceScope {
-    len: usize,
+    // The generation and the next position when the scope was made
+    mark: (NonZeroU32, u64),
     // The map is the thread's own, so the scope stays on that thread
     thread: PhantomData<*const ()>,
 }
 
 impl Drop for SourceScope {
     fn drop(&mut self) {
-        // A scope dropped while the map is borrowed, or while the thread
-        // ends, releases nothing
         let _ = GLOBAL.try_with(|sm| {
             if let Ok(mut sm) = sm.try_borrow_mut() {
-                sm.sources.truncate(self.len);
+                let kept = sm.sources.partition_point(|src| {
+                    let span = src.span();
+                    (span.generation(), span.byte_range().start as u64) < self.mark
+                });
+                sm.sources.truncate(kept);
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Positions that would end at the last 32-bit position start a new
+    // generation, and a span of a released source finds nothing even where a
+    // source of the new generation takes the same positions
+    #[test]
+    fn positions_start_a_new_generation_before_they_run_out() {
+        let mut map = SourceMap::new();
+        let old = map.push("abcdef");
+        map.next = (u32::MAX - 6).into();
+        let new = map.push("abcdef");
+        map.sources.remove(0);
+
+        assert_eq!(new.generation().get(), old.generation().get() + 1);
+        assert_eq!(new.byte_range(), 0..6);
+        assert_eq!(old.byte_range(), 0..6);
+        assert!(map.find(old).is_none());
+        assert!(map.find(new).is_some());
     }
 }

@@ -392,3 +392,37 @@ fn source_scopes_nest() {
     assert_eq!(SourceMap::with(|map| map.len()), before);
     assert!(!has_source(first));
 }
+
+// A scope releases what was lexed after it was made, whatever order scopes
+// drop in
+#[test]
+fn a_scope_dropped_out_of_order_releases_what_it_saw_lexed() {
+    use moxy::token::source::SourceMap;
+
+    let first = SourceMap::scope();
+    let before = last_span("x");
+    let second = SourceMap::scope();
+    drop(first);
+    let during = last_span("y");
+    drop(second);
+
+    assert!(!has_source(before) && !has_source(during));
+}
+
+// Joining a span of no source, as an identifier made from text, gives the
+// other span
+#[test]
+fn a_span_of_no_source_joins_as_the_other_span() {
+    let ident: moxy::token::Ident = "a".parse().unwrap();
+    let lexed = last_span("b c");
+
+    assert_eq!(ident.span().join(lexed), lexed);
+    assert_eq!(lexed.join(ident.span()), lexed);
+}
+
+// A byte order mark takes no column
+#[test]
+fn a_byte_order_mark_takes_no_column() {
+    let span = last_span("\u{feff}a b");
+    assert_eq!((span.start().line(), span.start().column()), (0, 2));
+}

@@ -21,6 +21,10 @@ pub enum Span {
     Fallback(fallback::Span),
 }
 
+// Every token holds a span, so its size is kept: the fallback span's nonzero
+// generation leaves room for the compiler span beside it
+const _: () = assert!(std::mem::size_of::<Span>() == 12);
+
 impl Span {
     pub fn call_site() -> Self {
         if proc_macro::is_available() {
@@ -47,6 +51,12 @@ impl Span {
         Self::Fallback(fallback::Span::def_site())
     }
 
+    /// The location of the start: for a compiler span, as the compiler gives
+    /// it; for a fallback span, in its source in the thread's
+    /// [`SourceMap`](crate::source::SourceMap). A fallback span whose source
+    /// is not there, as the call site, a span made from text alone, or one
+    /// lexed inside a released [`SourceScope`](crate::source::SourceScope),
+    /// is at line 0 and column 0.
     pub fn start(&self) -> Location {
         match self {
             Self::Compiler(v) => {
@@ -66,6 +76,7 @@ impl Span {
         }
     }
 
+    /// The location of the end, as [`Span::start`] finds it.
     pub fn end(&self) -> Location {
         match self {
             Self::Compiler(v) => {
@@ -167,7 +178,7 @@ impl Span {
         other
     }
 
-    /// Split a span at `head_len` characters from its start, returning
+    /// Split a span at `at` bytes from its start, returning
     /// `(head_span, rest_span)`. Only `Fallback` spans carry offsets we can split;
     /// for compiler spans we reuse the whole span for both halves.
     pub fn split(self, at: usize) -> (Span, Span) {

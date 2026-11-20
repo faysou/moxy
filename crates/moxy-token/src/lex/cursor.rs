@@ -68,12 +68,12 @@ impl<'a> Cursor<'a> {
         LexError::new(self.span())
     }
 
-    /// Advance by 1 byte, counting characters for the offset.
+    /// Advance by 1 byte, which the offset counts.
     pub fn advance(&self) -> Self {
         self.advance_by(1)
     }
 
-    /// Advance by `n` bytes, counting characters for the offset.
+    /// Advance by `n` bytes, which the offset counts.
     pub fn advance_by(&self, n: usize) -> Self {
         Self {
             rest: &self.rest[n..],

@@ -385,6 +385,13 @@ impl TokenStream {
     fn scan_owned(s: String, start: fn(Cursor<'_>) -> Cursor<'_>) -> Result<Self, LexError> {
         use crate::source::SourceMap;
 
+        // Positions are 32 bits, and the last one stays free
+        if s.len() >= u32::MAX as usize {
+            return LexError::new(Span::call_site())
+                .message("a source of 4 GiB or more cannot be lexed")
+                .into();
+        }
+
         SourceMap::with_mut(|sm| {
             let span = sm.push(s);
             let source = sm.find(span).expect("new source missing from source map");
