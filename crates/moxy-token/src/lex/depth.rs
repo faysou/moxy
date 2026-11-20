@@ -61,9 +61,11 @@ use std::cell::Cell;
 /// thread with at least 2 MiB.
 pub const MAX_DEPTH: usize = 144;
 
-/// The most expressions, types, patterns, items, blocks, and token groups that
-/// a syntax tree may nest in one another, for a tree built in code, which
-/// counts half a level of [`MAX_DEPTH`] for each. The parser's weights depend
+/// The most expressions, types, patterns, items, blocks, use groups, use path
+/// chains, and token groups that a syntax tree may nest in one another, for a
+/// tree built in code, which counts half a level of [`MAX_DEPTH`] for each; an
+/// associated type bound counts as six and an associated binding as four, half
+/// a level for each level their parse takes. The parser's weights depend
 /// on each form and its context, so such a tree is measured by its nodes
 /// instead. The parser counts every node that wraps another one parsed before
 /// it, as `+` wraps `a * b` in `a * b + c`, so the trees it returns stay below

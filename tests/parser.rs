@@ -1533,3 +1533,123 @@ fn a_token_stream_built_past_the_depth_limit_is_reported() {
     assert_eq!((lexed.nests_deeper_than(1), lexed.nests_deeper_than(2)), (true, false));
     assert_eq!(built, [false, true, true]);
 }
+
+fn grouped(tree: &mut moxy::ast::UseTree) -> &mut moxy::ast::UseTree {
+    let moxy::ast::UseTree::PathChain(chain) = tree else {
+        panic!()
+    };
+    let moxy::ast::UseTree::Group(group) = &mut *chain.tree else {
+        panic!()
+    };
+    group.items.inner.first_mut().unwrap()
+}
+
+fn bounded(path: &mut moxy::ast::Path) -> &mut moxy::ast::Path {
+    let moxy::ast::PathArguments::AngleBracketed(args) = &mut path[0].args else {
+        panic!()
+    };
+    let Some(moxy::ast::GenericArgument::Constraint(constraint)) = args.args.first_mut() else {
+        panic!()
+    };
+    let Some(moxy::ast::TypeBound::Trait(bound)) = constraint.bounds.first_mut() else {
+        panic!()
+    };
+    &mut bound.path
+}
+
+fn chained(tree: &mut moxy::ast::UseTree) -> &mut moxy::ast::UseTree {
+    let moxy::ast::UseTree::PathChain(chain) = tree else {
+        panic!()
+    };
+    &mut chain.tree
+}
+
+fn bound_args(args: &mut moxy::ast::PathArguments) -> &mut moxy::ast::PathArguments {
+    let moxy::ast::PathArguments::AngleBracketed(angle) = args else {
+        panic!()
+    };
+    let Some(moxy::ast::GenericArgument::AssocType(binding)) = angle.args.first_mut() else {
+        panic!()
+    };
+    &mut binding.args
+}
+
+// A file of one use item whose tree is built `n` deep
+fn built_use(n: usize, place: fn(&mut moxy::ast::UseTree) -> &mut moxy::ast::UseTree, template: &str) -> moxy::ast::File {
+    let mut file: moxy::ast::File = moxy::parse!("use x;").unwrap();
+    let moxy::ast::Item::Use(use_item) = &mut file.items[0] else {
+        panic!()
+    };
+    use_item.tree = built(template, "b", n, place);
+    file
+}
+
+// A type whose path is built `n` deep through associated type bounds, or
+// through the arguments of associated bindings
+fn built_bounds(n: usize) -> moxy::ast::Type {
+    let mut ty: moxy::ast::Type = moxy::parse!("X").unwrap();
+    let moxy::ast::Type::Path(path) = &mut ty else { panic!() };
+    path.path = built("A<B: C>", "C", n, bounded);
+    ty
+}
+
+fn built_bindings(n: usize) -> moxy::ast::Type {
+    let mut ty: moxy::ast::Type = moxy::parse!("X").unwrap();
+    let moxy::ast::Type::Path(path) = &mut ty else { panic!() };
+    path.path[0].args = built("<B<C> = u8>", "<C>", n, bound_args);
+    ty
+}
+
+// Use groups, use path chains, associated type bounds, and associated
+// bindings nest without an expression, type, or pattern between their levels,
+// so the check and the formatter count them
+#[test]
+fn use_trees_and_associated_arguments_built_deep_are_reported() {
+    let reported = on_small_stack(move || {
+        [400, 100_000].map(|n| {
+            let groups = built_use(n, grouped, "a::{b}");
+            let chains = built_use(n, chained, "a::b");
+            let (bounds, bindings) = (built_bounds(n), built_bindings(n));
+            let reported = [
+                (groups.nests_past_max_depth(), moxy::fmt!(&groups).is_err()),
+                (chains.nests_past_max_depth(), moxy::fmt!(&chains).is_err()),
+                (bounds.nests_past_max_depth(), moxy::fmt!(&bounds).is_err()),
+                (bindings.nests_past_max_depth(), moxy::fmt!(&bindings).is_err()),
+            ];
+            std::mem::forget((groups, chains, bounds, bindings));
+            reported
+        })
+    });
+
+    assert_eq!(reported, [[(true, true); 4]; 2]);
+}
+
+// The deepest use trees and associated arguments that the check accepts run
+// every traversal on a small stack
+#[test]
+fn use_trees_and_associated_arguments_built_to_the_limit_run_every_traversal() {
+    let limits = on_small_stack(move || {
+        let deepest = |past: &dyn Fn(usize) -> bool| (1..).find(|&n| past(n + 1)).unwrap();
+        let groups = deepest(&|n| built_use(n, grouped, "a::{b}").nests_past_max_depth());
+        let chains = deepest(&|n| built_use(n, chained, "a::b").nests_past_max_depth());
+        let bounds = deepest(&|n| built_bounds(n).nests_past_max_depth());
+        let bindings = deepest(&|n| built_bindings(n).nests_past_max_depth());
+        traverse(built_use(groups, grouped, "a::{b}"));
+        traverse(built_use(chains, chained, "a::b"));
+        traverse(built_bounds(bounds));
+        traverse(built_bindings(bindings));
+        [groups, chains, bounds, bindings]
+    });
+
+    // The item takes a node, a level of groups two (its chain and its group),
+    // and a chain one; the type takes one, a bound six, and a binding four
+    let nodes = moxy::token::MAX_NESTED_NODES;
+    let (bound, binding) = (
+        moxy::ast::ConstraintArgument::NESTED_NODES,
+        moxy::ast::AssocTypeArgument::NESTED_NODES,
+    );
+    assert_eq!(
+        limits,
+        [(nodes - 1) / 2, nodes - 1, (nodes - 1) / bound, (nodes - 1) / binding]
+    );
+}

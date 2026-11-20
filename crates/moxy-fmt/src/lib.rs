@@ -101,8 +101,8 @@ pub struct Formatter {
     output: String,
     depth: usize,
     column: usize,
-    // The expressions, types, patterns, items, blocks, and token groups that
-    // nest around the node being formatted
+    // The nodes that nest around the node being formatted, counted as
+    // `MAX_NESTED_NODES` counts them
     nodes: usize,
 }
 
@@ -178,13 +178,22 @@ impl Formatter {
     // past `MAX_NESTED_NODES`, as a tree built in code can be, as its
     // `nests_past_max_depth` counts it
     pub(crate) fn nest(&mut self, format: impl FnOnce(&mut Self) -> Result<(), FmtError>) -> Result<(), FmtError> {
-        if self.nodes == MAX_NESTED_NODES {
+        self.nest_by(1, format)
+    }
+
+    // Formats a node that counts as `nodes` nested nodes, as `nest` does
+    pub(crate) fn nest_by(
+        &mut self,
+        nodes: usize,
+        format: impl FnOnce(&mut Self) -> Result<(), FmtError>,
+    ) -> Result<(), FmtError> {
+        if self.nodes + nodes > MAX_NESTED_NODES {
             return Err(too_deep());
         }
 
-        self.nodes += 1;
+        self.nodes += nodes;
         let formatted = format(self);
-        self.nodes -= 1;
+        self.nodes -= nodes;
         formatted
     }
 

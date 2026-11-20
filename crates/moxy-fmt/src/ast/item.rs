@@ -202,16 +202,18 @@ impl Format for UseTree {
 
 impl Format for UsePathChain {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
-        if self.prefix.is_some() {
-            f.text("::")?;
-        }
+        f.nest(|f| {
+            if self.prefix.is_some() {
+                f.text("::")?;
+            }
 
-        for segment in self.segments.iter() {
-            segment.format(f)?;
-            f.text("::")?;
-        }
+            for segment in self.segments.iter() {
+                segment.format(f)?;
+                f.text("::")?;
+            }
 
-        self.tree.format(f)
+            self.tree.format(f)
+        })
     }
 }
 
@@ -239,13 +241,15 @@ impl Format for UseRename {
 
 impl Format for UseGroup {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
-        if self.prefix.is_some() {
-            f.text("::")?;
-        }
+        f.nest(|f| {
+            if self.prefix.is_some() {
+                f.text("::")?;
+            }
 
-        f.text("{")?;
-        self.items.inner.format(f)?;
-        f.text("}")
+            f.text("{")?;
+            self.items.inner.format(f)?;
+            f.text("}")
+        })
     }
 }
 

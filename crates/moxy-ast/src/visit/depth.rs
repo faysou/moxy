@@ -12,14 +12,19 @@ struct DepthCheck {
 
 impl DepthCheck {
     fn nest(&mut self, walk: impl FnOnce(&mut Self)) {
-        if self.exceeded || self.nodes == MAX_NESTED_NODES {
+        self.nest_by(1, walk);
+    }
+
+    // Enters a node that counts as `nodes` nested nodes
+    fn nest_by(&mut self, nodes: usize, walk: impl FnOnce(&mut Self)) {
+        if self.exceeded || self.nodes + nodes > MAX_NESTED_NODES {
             self.exceeded = true;
             return;
         }
 
-        self.nodes += 1;
+        self.nodes += nodes;
         walk(self);
-        self.nodes -= 1;
+        self.nodes -= nodes;
     }
 
     fn tokens(&mut self, tokens: &TokenStream) {
@@ -55,6 +60,37 @@ impl<'ast> Visit<'ast> for DepthCheck {
         self.nest(|check| walk_stmt_block(check, node));
     }
 
+    // A use group nests use trees, as in `a::{b::{c}}`, and an associated
+    // type bound nests paths, as in `A<B: A<B: C>>`, with none of the nodes
+    // above between their levels
+    fn visit_use_group(&mut self, node: &'ast UseGroup) {
+        self.nest(|check| walk_use_group(check, node));
+    }
+
+    fn visit_constraint_argument(&mut self, node: &'ast ConstraintArgument) {
+        self.nest_by(ConstraintArgument::NESTED_NODES, |check| {
+            walk_constraint_argument(check, node)
+        });
+    }
+
+    // An associated binding nests generic arguments through its own, as in
+    // `A<B<C = u8> = u8>`
+    fn visit_assoc_type_argument(&mut self, node: &'ast AssocTypeArgument) {
+        self.nest_by(AssocTypeArgument::NESTED_NODES, |check| walk_assoc_type_argument(check, node));
+    }
+
+    fn visit_assoc_const_argument(&mut self, node: &'ast AssocConstArgument) {
+        self.nest_by(AssocConstArgument::NESTED_NODES, |check| {
+            walk_assoc_const_argument(check, node)
+        });
+    }
+
+    // The parser holds a use path in one chain, but a tree built in code can
+    // nest a chain in a chain
+    fn visit_use_path_chain(&mut self, node: &'ast UsePathChain) {
+        self.nest(|check| walk_use_path_chain(check, node));
+    }
+
     fn visit_macro_call(&mut self, node: &'ast MacroCall) {
         self.group(&node.body);
         walk_macro_call(self, node);
@@ -87,9 +123,10 @@ macro_rules! depth_checks {
     ($($ty:ty => $visit:ident;)*) => {$(
         impl $ty {
             /// Whether the tree nests past [`MAX_DEPTH`](moxy_token::MAX_DEPTH), as a tree built in
-            /// code can: whether more than [`MAX_NESTED_NODES`] expressions,
-            /// types, patterns, items, blocks, and token groups nest in one
-            /// another, a limit the parser's trees stay below. Every
+            /// code can: whether the expressions, types, patterns, items,
+            /// blocks, use trees, associated arguments, and token groups that
+            /// nest in one another count past [`MAX_NESTED_NODES`], a limit
+            /// the parser's trees stay below. Every
             /// traversal of a tree that does not runs on the stack
             /// `MAX_DEPTH` is sized for. The check stops descending once the
             /// tree is past the limit, so it runs on a tree nested any depth.

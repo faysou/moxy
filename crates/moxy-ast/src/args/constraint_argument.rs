@@ -15,6 +15,11 @@ pub struct ConstraintArgument {
 }
 
 impl ConstraintArgument {
+    /// The nested nodes an associated type bound counts as against
+    /// [`MAX_NESTED_NODES`](moxy_token::MAX_NESTED_NODES): half a level each
+    /// of the three levels its parse takes, which its heavy traversals match.
+    pub const NESTED_NODES: usize = 2 * (crate::args::CONSTRAINT_EXTRA_LEVELS + 1);
+
     pub fn to_generic_argument(&self) -> GenericArgument {
         GenericArgument::Constraint(Box::new(self.clone()))
     }

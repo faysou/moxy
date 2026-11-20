@@ -15,6 +15,11 @@ pub struct AssocConstArgument {
 }
 
 impl AssocConstArgument {
+    /// The nested nodes an associated binding counts as against
+    /// [`MAX_NESTED_NODES`](moxy_token::MAX_NESTED_NODES): half a level each
+    /// of the two levels its parse takes.
+    pub const NESTED_NODES: usize = 2 * (crate::args::ASSOC_EXTRA_LEVELS + 1);
+
     pub fn to_generic_argument(&self) -> GenericArgument {
         GenericArgument::AssocConst(Box::new(self.clone()))
     }
