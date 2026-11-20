@@ -145,10 +145,11 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    // Skips what precedes the tokens of a source file, as the compiler does: a
-    // byte order mark, and a shebang line such as `#!/usr/bin/env -S cargo`.
-    // A `#!` that a `[` follows starts an inner attribute instead.
-    pub(crate) fn skip_source_start(self) -> Self {
+    /// Skips what precedes the tokens of a source file, as the compiler does: a
+    /// byte order mark, and a shebang line such as `#!/usr/bin/env -S cargo`,
+    /// up to its line break. A `#!` that a `[` follows starts an inner
+    /// attribute instead.
+    pub fn skip_source_start(self) -> Self {
         let cursor = self.skip_byte_order_mark();
 
         if cursor.starts_with("#!") && !cursor.advance_by(2).skip_whitespace().starts_with("[") {

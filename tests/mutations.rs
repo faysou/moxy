@@ -37,7 +37,7 @@ fn mutations(source: &str) -> Vec<String> {
 // Lexes and parses one source in every way a caller would, and emits and
 // formats what parses
 fn exercise(source: &str) {
-    let Ok(tokens) = source.parse::<TokenStream>() else {
+    let Ok(tokens) = TokenStream::from_source_file(source.to_owned()) else {
         return;
     };
 

@@ -1198,7 +1198,7 @@ fn every_tree_of_the_parse_fixtures_serializes_with_announced_lengths() {
             let path = entry.unwrap().path();
             let source = std::fs::read_to_string(&path).unwrap();
 
-            match moxy::parse!(source as moxy::ast::File) {
+            match moxy::ast::File::from_source_file(source) {
                 Ok(file) => {
                     let serialized = file.serialize(length_check::Check).map_err(|error| error.to_string());
                     assert_eq!(serialized, Ok(()), "{}", path.display());

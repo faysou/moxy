@@ -67,9 +67,9 @@ fn visitors_traverse_real_crate_syntax_before_exact_rendering() {
 #[test]
 fn files_preserve_shebangs_and_inner_attributes() {
     let source = "#!/usr/bin/env rustx\n#![allow(dead_code)]\nstruct Entry;";
-    let file: File = moxy::parse!(source).unwrap();
+    let file = File::from_source_file(source.to_owned()).unwrap();
 
-    assert_eq!(file.shebang.as_ref().unwrap().ident.clone().unwrap().text(), "rustx");
+    assert_eq!(file.shebang.as_deref(), Some("#!/usr/bin/env rustx"));
     assert_eq!(file.attrs.len(), 1);
     assert_eq!(file.items.len(), 1);
     assert!(!file.span().is_empty());

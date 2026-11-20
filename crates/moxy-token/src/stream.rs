@@ -361,8 +361,9 @@ impl TokenStream {
     ///
     /// A leading byte order mark is skipped, as the compiler and
     /// `proc_macro2` skip it from any string they lex, and every other
-    /// character lexes as tokens: `"#!a b"` gives `# ! a b`. The text of a
-    /// source file, which may start with a shebang line, lexes with
+    /// character lexes as tokens: `"#!a b"` gives `# ! a b`, and a `File`
+    /// parsed from such tokens has no shebang. The text of a source file, which
+    /// may start with a shebang line, lexes with
     /// [`TokenStream::from_source_file`].
     pub fn from_string(s: String) -> Result<Self, LexError> {
         Self::scan_owned(s, |cursor| cursor.skip_byte_order_mark())
@@ -373,7 +374,8 @@ impl TokenStream {
     ///
     /// A shebang line is a first line that starts with `#!` and no inner
     /// attribute, as `#!/usr/bin/env -S cargo` but not `#![allow(dead_code)]`.
-    /// It gives no tokens, so a `File` parsed from the stream has no shebang.
+    /// It gives no tokens, so a `File` parsed from the stream has no shebang;
+    /// `File::from_source_file` in `moxy_ast` keeps the line's text.
     pub fn from_source_file(text: String) -> Result<Self, LexError> {
         Self::scan_owned(text, |cursor| cursor.skip_source_start())
     }
