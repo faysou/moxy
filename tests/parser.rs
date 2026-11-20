@@ -1653,3 +1653,26 @@ fn use_trees_and_associated_arguments_built_to_the_limit_run_every_traversal() {
         [(nodes - 1) / 2, nodes - 1, (nodes - 1) / bound, (nodes - 1) / binding]
     );
 }
+
+// The formatter checks a macro body's groups before it reads them, so a body
+// built 100,000 groups deep is an error instead of a stack overflow
+#[test]
+fn a_macro_body_built_deep_formats_to_an_error() {
+    use moxy::token::Group;
+
+    let formatted = on_small_stack(|| {
+        let mut expr: moxy::ast::Expr = moxy::parse!("m!()").unwrap();
+        let moxy::ast::Expr::Macro(mac) = &mut expr else { panic!() };
+        mac.mac.body.tokens = (0..100_000).fold(TokenStream::new(), |stream, _| {
+            TokenStream::from_iter([TokenTree::Group(Group::new(Delim::Bracket, stream))])
+        });
+        let formatted = moxy::fmt!(&expr).map_err(|error| error.to_string());
+        drop(expr);
+        formatted
+    });
+
+    assert_eq!(
+        formatted,
+        Err(format!("nesting is deeper than {} levels", moxy::token::MAX_DEPTH))
+    );
+}

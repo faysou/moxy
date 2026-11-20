@@ -1,5 +1,5 @@
 use moxy_ast::MacroCall;
-use moxy_token::{Delim, ToTokenStream};
+use moxy_token::Delim;
 
 use crate::{FmtError, Format, Formatter};
 
@@ -17,9 +17,8 @@ impl Format for MacroCall {
 
         f.text(open)?;
         f.nest(|f| {
-            let tokens = self.tokens().to_token_stream();
-            f.check_tokens(&tokens)?;
-            f.text(tokens)
+            f.check_tokens(self.tokens())?;
+            f.text(self.tokens())
         })?;
         f.text(close)
     }
