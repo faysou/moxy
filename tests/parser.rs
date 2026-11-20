@@ -1905,14 +1905,13 @@ fn composed(outer: usize, inner: usize, levels: (usize, usize), leaf: &str, suff
     )
 }
 
-// The roots a source of a kind is parsed as: an expression, outside the half
-// nesting, also as a statement, where a block-like root takes its own level,
-// and on the other pair of the same outer as the statement of a block
-fn roots(kind: char, pair: usize, half: bool) -> &'static [char] {
+// The roots a pair of a kind is parsed as: an expression, outside the half
+// nesting, also as a statement, where a block-like root takes its own level.
+// The filler compositions parse statements of a block as well.
+fn roots(kind: char, half: bool) -> &'static [char] {
     match kind {
         'e' if half => &['e'],
-        'e' if pair % 2 == 0 => &['e', 's'],
-        'e' => &['e', 'b'],
+        'e' => &['e', 's'],
         't' => &['t'],
         _ => &['p'],
     }
@@ -1920,11 +1919,11 @@ fn roots(kind: char, pair: usize, half: bool) -> &'static [char] {
 
 // The kind of a construct's centre, which a leaf that only that kind reads
 // fills, or `None` when no probe does
-fn centre_kind(case: usize) -> Option<char> {
+fn centre_kind(case: usize, parses: &dyn Fn(char, String) -> bool) -> Option<char> {
     let (_, kind, before, open, _, close, after, _) = NESTED[case];
     CENTRE_PROBES
         .iter()
-        .find(|(_, probe)| parsed_tree_holds(kind, format!("{before}{open}{probe}{close}{after}"), false).is_some())
+        .find(|(_, probe)| parses(kind, format!("{before}{open}{probe}{close}{after}")))
         .map(|(centre, _)| *centre)
 }
 
@@ -1993,39 +1992,44 @@ fn composed_constructs_that_parse_pass_the_depth_check() {
 // The compositions of `composed_constructs_that_parse_pass_the_depth_check`,
 // run on one small stack, whose frames here take a few kilobytes
 fn compose() {
+    let failures = std::cell::RefCell::new(Vec::new());
+
+    // Whether a source parses as `root`; a tree that parses and fails the
+    // depth check or formatting is a failure
+    let parses = |root: char, source: String| match parsed_tree_holds(root, source.clone(), false) {
+        Some(false) => {
+            failures.borrow_mut().push(format!("{root}: {source}"));
+            true
+        }
+        outcome => outcome.is_some(),
+    };
     let composable: Vec<usize> = (0..NESTED.len()).filter(|&case| !NESTED[case].7).collect();
     let limits: std::collections::HashMap<usize, usize> = composable
         .iter()
-        .map(|&case| {
-            (
-                case,
-                deepest_in(1, 300, |n| {
-                    parsed_tree_holds(NESTED[case].1, nested(case, n), false).is_some()
-                }),
-            )
-        })
+        .map(|&case| (case, deepest_in(1, 300, |n| parses(NESTED[case].1, nested(case, n)))))
         .collect();
     // Files and blocks hold their centre in an item or a statement, which the
     // leaves do not fill
     let centres: std::collections::HashMap<usize, char> = composable
         .iter()
         .filter(|&&case| matches!(NESTED[case].1, 'e' | 't' | 'p'))
-        .filter_map(|&case| centre_kind(case).map(|centre| (case, centre)))
+        .filter_map(|&case| centre_kind(case, &parses).map(|centre| (case, centre)))
         .collect();
-    let (mut checked, mut unfitting, mut failures, mut dropped) = (0, 0, Vec::new(), Vec::new());
+    let (mut checked, mut unfitting, mut dropped) = (0, 0, Vec::new());
 
     // Checks every tree that parses as `root` on the way to the deepest `n` in
-    // `[low, high)` at which `source(n)` parses, and runs every traversal on
-    // that deepest tree
-    let mut sweep = |root: char, low: usize, high: usize, source: &dyn Fn(usize) -> String| {
-        let deepest = deepest_in(low, high, |n| match parsed_tree_holds(root, source(n), false) {
-            Some(false) => {
-                failures.push(format!("{root}: {}", source(n)));
-                true
-            }
-            outcome => outcome.is_some(),
-        });
-        parsed_tree_holds(root, source(deepest), true);
+    // `[low, high)` at which `source(n)` parses, which the caller has seen
+    // parse at `low`, and runs every traversal on that deepest tree
+    let sweep = |root: char, low: usize, high: usize, source: &dyn Fn(usize) -> String| {
+        let deepest = deepest_in(low, high, |n| parses(root, source(n)));
+
+        match parsed_tree_holds(root, source(deepest), true) {
+            Some(true) => {}
+            Some(false) => failures.borrow_mut().push(format!("{root}: {}", source(deepest))),
+            None => failures
+                .borrow_mut()
+                .push(format!("{root} does not parse at the low bound: {}", source(deepest))),
+        }
     };
 
     // Each type and pattern construct alone around every leaf of its centre's
@@ -2039,7 +2043,7 @@ fn compose() {
 
             // A leaf that the centre does not take, as an assignment in the
             // end of a range
-            if parsed_tree_holds(kind, source(1), false).is_none() {
+            if !parses(kind, source(1)) {
                 unfitting += 1;
                 continue;
             }
@@ -2056,7 +2060,7 @@ fn compose() {
 
     for (&case, &centre) in centres.iter().filter(|(case, _)| NESTED[**case].1 == 'e') {
         for &(_, leaf) in LEAVES.iter().filter(|(leaf_kind, _)| *leaf_kind == centre) {
-            if parsed_tree_holds('e', composed(filler, case, (1, 1), leaf, ""), false).is_none() {
+            if !parses('e', composed(filler, case, (1, 1), leaf, "")) {
                 unfitting += 1;
                 continue;
             }
@@ -2069,16 +2073,16 @@ fn compose() {
             continue;
         }
 
-        // As a statement, where a block-like root takes its own level, with
-        // and without a binary chain before the filler, so the nodes meet the
-        // limit at either parity
+        // As a statement, where a block-like root takes its own level, and as
+        // the statement of a block, with and without a binary chain before the
+        // filler, so the nodes meet the limit at either parity
         let (_, _, before, open, _, close, after, _) = NESTED[case];
         let filler_open = NESTED[filler].3;
 
-        for (root, prefix) in [('s', ""), ('s', "0 + ")] {
+        for (root, prefix) in [('s', ""), ('s', "0 + "), ('b', ""), ('b', "0 + ")] {
             let source = |n: usize| format!("{before}{open}{prefix}{}x{close}{after}", filler_open.repeat(n));
 
-            if parsed_tree_holds(root, source(1), false).is_none() {
+            if !parses(root, source(1)) {
                 unfitting += 1;
                 continue;
             }
@@ -2104,7 +2108,7 @@ fn compose() {
             .filter(|case| NESTED[*case].1 == centre && centres.contains_key(case))
             .collect();
 
-        for pair in 0..INNERS_PER_OUTER {
+        for _ in 0..INNERS_PER_OUTER {
             let turn = turns.entry(centre).or_default();
             let inner = inners[*turn % inners.len()];
             let leaves: Vec<&str> = LEAVES
@@ -2119,9 +2123,8 @@ fn compose() {
             let half = limits[&outer] / 2;
 
             for target in [1, half, limits[&outer].saturating_sub(1).max(1)] {
-                for &root in roots(kind, pair, target == half && half > 1) {
-                    let reads =
-                        |suffix: &str| parsed_tree_holds(root, composed(outer, inner, (1, 0), leaf, suffix), false).is_some();
+                for &root in roots(kind, target == half && half > 1) {
+                    let reads = |suffix: &str| parses(root, composed(outer, inner, (1, 0), leaf, suffix));
 
                     // A suffix the grammar rejects after the construct, as an
                     // assignment after a range or `*0+0` after a block-like
@@ -2141,9 +2144,7 @@ fn compose() {
 
                     // The outer, as deep as it parses up to the target around
                     // the bare inner, then the inner as deep as it parses
-                    let levels = deepest_in(1, target + 1, |n| {
-                        parsed_tree_holds(root, composed(outer, inner, (n, 0), leaf, suffix), false).is_some()
-                    });
+                    let levels = deepest_in(1, target + 1, |n| parses(root, composed(outer, inner, (n, 0), leaf, suffix)));
 
                     checked += 1;
                     sweep(root, 0, limits[&inner] + 1, &|n| {
@@ -2159,6 +2160,7 @@ fn compose() {
         centres.len()
     );
     assert!(checked > 900, "{checked} compositions parsed");
+    let failures = failures.into_inner();
     assert!(
         failures.is_empty(),
         "parsed but failed the depth check or formatting:\n{}",
