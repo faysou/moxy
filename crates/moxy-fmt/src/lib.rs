@@ -197,10 +197,11 @@ impl Formatter {
         formatted
     }
 
-    // Reports tokens whose groups nest past `MAX_NESTED_NODES` with the nodes
-    // around them, before their text, which recurses once per group, is written
+    // Reports unparsed tokens, as a macro body, whose groups nest past the
+    // nodes left, before their text, which recurses once per group, is
+    // written: each group takes a level of the parser, so two nodes
     pub(crate) fn check_tokens(&self, tokens: &TokenStream) -> Result<(), FmtError> {
-        if tokens.nests_deeper_than(MAX_NESTED_NODES - self.nodes) {
+        if tokens.nests_deeper_than((MAX_NESTED_NODES - self.nodes) / 2) {
             return Err(too_deep());
         }
 

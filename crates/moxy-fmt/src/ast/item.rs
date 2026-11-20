@@ -724,10 +724,8 @@ impl Format for ItemMacroRules {
         f.text("macro_rules! ")?;
         self.ident.format(f)?;
         f.text(" { ")?;
-        f.nest(|f| {
-            f.check_tokens(&self.body.tokens)?;
-            f.text(&self.body.tokens)
-        })?;
+        f.check_tokens(&self.body.tokens)?;
+        f.text(&self.body.tokens)?;
         f.text(" }")
     }
 }
@@ -746,18 +744,14 @@ impl Format for ItemDeclMacro {
 
         if let Some(params) = &self.params {
             f.text("(")?;
-            f.nest(|f| {
-                f.check_tokens(&params.tokens)?;
-                f.text(&params.tokens)
-            })?;
+            f.check_tokens(&params.tokens)?;
+            f.text(&params.tokens)?;
             f.text(")")?;
         }
 
         f.text(" { ")?;
-        f.nest(|f| {
-            f.check_tokens(&self.body.tokens)?;
-            f.text(&self.body.tokens)
-        })?;
+        f.check_tokens(&self.body.tokens)?;
+        f.text(&self.body.tokens)?;
         f.text(" }")
     }
 }

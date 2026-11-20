@@ -87,6 +87,27 @@ impl TokenStream {
 
         false
     }
+
+    // How deep the stream's groups nest, found without recursion
+    pub(crate) fn nesting(&self) -> usize {
+        let mut open = vec![self.0.iter()];
+        let mut deepest = 0;
+
+        while let Some(trees) = open.last_mut() {
+            match trees.next() {
+                Some(TokenTree::Group(group)) => {
+                    deepest = deepest.max(open.len());
+                    open.push(group.tokens.0.iter());
+                }
+                Some(_) => {}
+                None => {
+                    open.pop();
+                }
+            }
+        }
+
+        deepest
+    }
 }
 
 impl std::ops::Deref for TokenStream {

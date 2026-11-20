@@ -52,7 +52,9 @@ use std::cell::Cell;
 /// tree nests through it; so does a chain of binary operators that takes an
 /// earlier chain as its first operand, as `+` in `a * b + c`, and a range or
 /// assignment whose left side is such a chain, as in `a + b..`. The end of a
-/// range is one level. Skipping takes the same levels as parsing.
+/// range is one level. The tokens a node holds unparsed, as a macro body or
+/// attribute arguments, take a level for each group nested in them, as a
+/// traversal walks them that deep. Skipping takes the same levels as parsing.
 ///
 /// The count is the same on every build and platform, so a source parses or
 /// fails alike everywhere. It is sized for the 2 MiB stack of a spawned thread
@@ -93,6 +95,13 @@ impl Depth {
     /// One level of nesting.
     pub fn enter() -> Option<Self> {
         Self::enter_by(1)
+    }
+
+    /// A level for each group that `tokens` nest, for tokens a node holds
+    /// unparsed, such as a macro body, which a traversal walks as deep as they
+    /// nest.
+    pub fn enter_tokens(tokens: &crate::TokenStream) -> Option<Self> {
+        Self::enter_by(tokens.nesting())
     }
 
     /// `levels` levels of nesting, for a node whose parse takes that many

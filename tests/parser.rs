@@ -1739,3 +1739,68 @@ fn a_macro_body_built_deep_formats_to_an_error() {
         ))
     );
 }
+
+// A macro body or attribute arguments, which a traversal walks as deep as
+// their groups nest, take a level of the parser per group, so an expression
+// nested to the limit around them parses only while the whole tree fits, and
+// what parses passes the depth check and formats
+#[test]
+fn a_macro_body_inside_a_deep_expression_counts_its_groups() {
+    use moxy::ast::Expr;
+
+    let message = format!("nesting is deeper than {} levels", moxy::token::MAX_DEPTH);
+    let outcomes = on_small_stack(|| {
+        [
+            format!("{}m!()*0{}", "(".repeat(143), ") = 0".repeat(143)),
+            format!("{}m!((()))", "|| 0 + ".repeat(140)),
+            format!("{}m!((()))", "|| 0 + ".repeat(142)),
+            format!("{}#[a((b))] 0{}", "(".repeat(140), ") = 0".repeat(140)),
+        ]
+        .map(|source| match moxy::parse!(source as Expr) {
+            Ok(expr) => {
+                let outcome = Ok((expr.nests_past_max_depth(), moxy::fmt!(&expr).is_ok()));
+                traverse(expr);
+                outcome
+            }
+            Err(error) => Err(error.message().to_string()),
+        })
+    });
+
+    assert_eq!(
+        outcomes,
+        [Ok((false, true)), Ok((false, true)), Err(message), Ok((false, true))]
+    );
+}
+
+// A built tree whose nodes and macro body groups fill the limit together runs
+// every traversal on a small stack; one more group fails the check
+#[test]
+fn a_built_tree_and_its_macro_body_share_the_node_limit() {
+    use moxy::ast::Expr;
+    use moxy::token::Group;
+
+    let tree = |groups: usize| {
+        let mut seed: Expr = moxy::parse!("m!()").unwrap();
+        let Expr::Macro(mac) = &mut seed else { panic!() };
+        mac.mac.body.tokens = (0..groups).fold(TokenStream::new(), |stream, _| {
+            TokenStream::from_iter([TokenTree::Group(Group::new(Delim::Bracket, stream))])
+        });
+        let template: Expr = moxy::parse!("-x").unwrap();
+        (0..143).fold(seed, |expr, _| {
+            let mut outer = template.clone();
+            *negated(&mut outer) = expr;
+            outer
+        })
+    };
+
+    // 144 expressions take 144 nodes, and each group two of the 144 left
+    let checked = on_small_stack(move || {
+        let past = tree(73).nests_past_max_depth();
+        let at = tree(72);
+        let checked = (at.nests_past_max_depth(), past);
+        traverse(at);
+        checked
+    });
+
+    assert_eq!(checked, (false, true));
+}

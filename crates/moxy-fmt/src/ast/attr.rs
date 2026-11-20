@@ -60,7 +60,8 @@ impl Format for MetaContent {
                     _ => (),
                 };
 
-                f.nest(|f| v.tokens.format(f))?;
+                f.check_tokens(&v.tokens)?;
+                v.tokens.format(f)?;
 
                 match v.delim {
                     Delim::Paren => f.text(")"),

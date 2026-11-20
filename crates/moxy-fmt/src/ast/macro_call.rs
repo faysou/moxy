@@ -16,10 +16,8 @@ impl Format for MacroCall {
         };
 
         f.text(open)?;
-        f.nest(|f| {
-            f.check_tokens(self.tokens())?;
-            f.text(self.tokens())
-        })?;
+        f.check_tokens(self.tokens())?;
+        f.text(self.tokens())?;
         f.text(close)
     }
 }

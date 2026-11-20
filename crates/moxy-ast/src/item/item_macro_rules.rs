@@ -37,16 +37,10 @@ impl Parse for ItemMacroRules {
         let macro_rules_keyword = <_ as Parse>::parse(parser)?;
         let not_punct = <_ as Parse>::parse(parser)?;
         let ident = <_ as Parse>::parse(parser)?;
-        let body = match parser.curr() {
-            Some(TokenTree::Group(g)) => {
-                let g = g.clone();
-                parser.advance();
-                g
-            }
-
-            _ => {
-                return Err(parser.expected("macro body"));
-            }
+        let body: Group = if Group::peek(parser.cursor()) {
+            <_ as Parse>::parse(parser)?
+        } else {
+            return Err(parser.expected("macro body"));
         };
 
         // Only a brace-delimited definition ends without a semicolon

@@ -27,12 +27,14 @@ impl DepthCheck {
         self.nodes -= nodes;
     }
 
+    // Unparsed tokens, which a traversal walks as deep as their groups nest,
+    // take a level of the parser for each group, so two nodes here
     fn tokens(&mut self, tokens: &TokenStream) {
-        self.exceeded = self.exceeded || tokens.nests_deeper_than(MAX_NESTED_NODES - self.nodes);
+        self.exceeded = self.exceeded || tokens.nests_deeper_than((MAX_NESTED_NODES - self.nodes) / 2);
     }
 
     fn group(&mut self, group: &Group) {
-        self.nest(|check| check.tokens(&group.tokens));
+        self.tokens(&group.tokens);
     }
 }
 
