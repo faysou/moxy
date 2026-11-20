@@ -2478,6 +2478,7 @@ t: A<Item(T) -> U: Clone>
 t: A<Item::(T): Clone>
 t: A<Item(T) = u8>
 t: A<Item<B>(T): Clone>
+t: A<f(..): Send>
 f: extern "C" { fn f(a: u8, ..., b: u8); }
 f: extern "C" { fn f(..., ...); }
 f: fn f(a: u8, x: ..., b: u8) {}

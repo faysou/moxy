@@ -114,7 +114,8 @@ fn generic_lists_and_bounds_may_be_empty() {
 }
 
 // rustc's parser accepts parenthesized arguments on an associated item's name,
-// as return type notation writes them
+// as in `Item(T): Clone`, and rejects them later; return type notation, as in
+// `f(..): Send`, is unstable and stays an error
 #[test]
 fn associated_items_take_parenthesized_arguments() {
     use moxy::ast::{GenericArgument, Parse, Parser, PathArguments, Type};
