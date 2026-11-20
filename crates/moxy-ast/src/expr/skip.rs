@@ -5,7 +5,7 @@ use super::peek;
 use super::*;
 
 pub(super) fn expr(cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
-    assignment(Attributes::skip(cursor)?, context)
+    assignment(Attributes::skip_below(cursor)?, context)
 }
 
 fn optional_expr(cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
@@ -24,12 +24,18 @@ pub(crate) fn pattern_bound(cursor: Cursor<'_>) -> Option<Cursor<'_>> {
 // whether a block-like expression ends it alone, which then needs no
 // semicolon or comma
 pub(crate) fn early_block_like(cursor: Cursor<'_>) -> Option<(Cursor<'_>, bool)> {
-    let start = Attributes::skip(cursor)?;
+    let start = Attributes::skip_below(cursor)?;
 
     // A block-like start that does not skip as one fails the statement:
     // skipping it again as an operand would retry every enclosing level, which
     // takes time exponential in the nesting
     if peek::block_like(start) {
+        // The level the parser takes for a block-like root
+        let _root = if moxy_token::__private::Depth::is_outermost() {
+            Some(moxy_token::__private::Depth::enter()?)
+        } else {
+            None
+        };
         let subtree = moxy_token::__private::Depth::subtree();
         let end = primary(start, ExprContext::NORMAL)?;
         let part = subtree.height();

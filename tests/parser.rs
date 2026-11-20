@@ -1800,6 +1800,7 @@ fn a_macro_body_inside_a_deep_expression_counts_its_groups() {
             format!("{}m!((()))", "|| 0 + ".repeat(140)),
             format!("{}m!((()))", "|| 0 + ".repeat(142)),
             format!("{}#[a((b))] 0{}", "(".repeat(140), ") = 0".repeat(140)),
+            format!("{}#[a((((b))))] x", "-".repeat(142)),
         ]
         .map(|source| match moxy::parse!(source as Expr) {
             Ok(expr) => {
@@ -1813,7 +1814,13 @@ fn a_macro_body_inside_a_deep_expression_counts_its_groups() {
 
     assert_eq!(
         outcomes,
-        [Ok((false, true)), Ok((false, true)), Err(message), Ok((false, true))]
+        [
+            Ok((false, true)),
+            Ok((false, true)),
+            Err(message.clone()),
+            Ok((false, true)),
+            Err(message)
+        ]
     );
 }
 
@@ -2052,4 +2059,36 @@ fn trees_of_list_nodes_built_to_the_limit_run_every_traversal() {
         traverse(built::<Pattern>("S(x)", "x", n, tuple_struct_element));
         traverse(built::<Type>("(u8,)", "u8", n, tuple_type_element));
     });
+}
+
+// Attributes read before their expression or closure parameter has entered its
+// level count from that level, and a block-like statement or match arm parsed
+// as the root takes the level its block or match would give it, so these
+// trees, which reached the node limit, are depth errors
+#[test]
+fn attributes_and_block_like_roots_take_their_levels() {
+    use moxy::ast::{Expr, Stmt};
+
+    let message = format!("nesting is deeper than {} levels", moxy::token::MAX_DEPTH);
+    let errors = on_small_stack(|| {
+        let exprs = [
+            format!("{}|| #[a((b))] x + 0", "|| 0 + ".repeat(142)),
+            format!("0 + {}|#[a{}b{}] x| x", "|| 0 + ".repeat(99), "(".repeat(45), ")".repeat(45)),
+        ]
+        .map(|source| moxy::parse!(source as Expr).err().map(|error| error.message().to_string()));
+        let stmts = [
+            format!("if 0 + {}x {{}}", "|| 0 + ".repeat(143)),
+            format!("while 0 + {}x {{}}", "|| 0 + ".repeat(143)),
+            format!("match 0 + {}x {{}}", "|| 0 + ".repeat(143)),
+            format!("for a in 0 + {}x {{}}", "|| 0 + ".repeat(143)),
+            format!("{}if 0 + x {{}}{}", "unsafe { ".repeat(143), " }".repeat(143)),
+        ]
+        .map(|source| moxy::parse!(source as Stmt).err().map(|error| error.message().to_string()));
+        (exprs, stmts)
+    });
+
+    assert_eq!(
+        errors,
+        ([(); 2].map(|_| Some(message.clone())), [(); 5].map(|_| Some(message.clone())))
+    );
 }

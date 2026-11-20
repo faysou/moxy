@@ -51,8 +51,12 @@ use std::cell::Cell;
 /// `{ x }.a() as T`, counts a level above the base it wraps, as walking the
 /// tree nests through it; so does a chain of binary operators that takes an
 /// earlier chain as its first operand, as `+` in `a * b + c`, and a range or
-/// assignment whose left side is such a chain, as in `a + b..`. The end of a
-/// range is one level. The tokens a node holds unparsed, as a macro body or
+/// assignment whose left side is such a chain, as in `a + b..`, and an
+/// assignment that takes the assignment before a range as its left side, as
+/// in `a = 0.. = 0`. The end of a range is one level. The outer attributes of
+/// an expression or a closure parameter count from the level of the node they
+/// belong to, and a block-like statement or match arm parsed alone takes the
+/// level that a block or match around it would give it. The tokens a node holds unparsed, as a macro body or
 /// attribute arguments, take a level for each group nested in them, as a
 /// traversal walks them that deep. Skipping takes the same levels as parsing.
 ///
@@ -101,6 +105,11 @@ impl Depth {
     /// One level of nesting.
     pub fn enter() -> Option<Self> {
         Self::enter_by(1)
+    }
+
+    /// Whether no level is held, as for a node parsed as the root of its tree.
+    pub fn is_outermost() -> bool {
+        DEPTH.with(Cell::get) == 0
     }
 
     /// A level for each group that `tokens` nest, for tokens a node holds

@@ -10,7 +10,7 @@ pub(super) fn expr(parser: &Parser, context: ExprContext) -> Result<Expr, ParseE
 // The parse functions return boxed expressions, which every parent node
 // stores, so a nested expression's stack frames hold pointers, not nodes
 fn boxed_expr(parser: &Parser, context: ExprContext) -> Result<Box<Expr>, ParseError> {
-    let attrs = <_ as Parse>::parse(parser)?;
+    let attrs = Attributes::parse_below(parser)?;
     assignment(parser, attrs, context)
 }
 
@@ -23,12 +23,16 @@ fn boxed(node: impl Into<Expr>) -> Box<Expr> {
 // field access, or `?` continues it, so `a => { x } (b, c) => y` holds two
 // arms and `if a { b } <T>::f()` two statements.
 pub(crate) fn early(parser: &Parser) -> Result<Box<Expr>, ParseError> {
-    let attrs = <_ as Parse>::parse(parser)?;
+    let attrs = Attributes::parse_below(parser)?;
 
     if !peek::block_like(parser.cursor()) {
         return assignment(parser, attrs, ExprContext::NORMAL);
     }
 
+    // A block-like expression takes the level of the block or match around it,
+    // so as the root of a statement or arm parsed alone it takes one here
+    let root = moxy_token::__private::Depth::is_outermost();
+    let _root = if root { moxy_token::__private::Depth::enter() } else { None };
     let subtree = moxy_token::__private::Depth::subtree();
     let mut body = primary(parser, Attributes::default(), ExprContext::NORMAL)?;
     let part = subtree.height();
