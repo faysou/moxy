@@ -90,6 +90,11 @@ impl TokenStream {
 
     // How deep the stream's groups nest, found without recursion
     pub(crate) fn nesting(&self) -> usize {
+        // Most bodies, as `Debug, Clone` in `derive(...)`, hold no group
+        if !self.0.iter().any(|tree| matches!(tree, TokenTree::Group(_))) {
+            return 0;
+        }
+
         let mut open = vec![self.0.iter()];
         let mut deepest = 0;
 
