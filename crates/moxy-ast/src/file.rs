@@ -11,8 +11,10 @@ pub struct File {
     /// [`File::from_source_file`], and so `parse_file!` and `parse_files!`,
     /// read it, since only the text says where the line ends: a token stream
     /// holds no line breaks, and parsing one never gives a shebang. The
-    /// formatter writes it back on the first line; emitted tokens leave it
-    /// out, as rustc's tokens of a file do.
+    /// formatter writes it back on the first line, and returns an error for a
+    /// value that would read back otherwise: one that does not start with
+    /// `#!`, spans more than one line, or opens an inner attribute, as `#![`.
+    /// Emitted tokens leave it out, as rustc's tokens of a file do.
     pub shebang: Option<String>,
     pub attrs: Attributes,
     pub items: Vec<Item>,
@@ -26,7 +28,7 @@ impl File {
     pub fn from_source_file(text: String) -> Result<Self, ParseError> {
         let body = text.strip_prefix('\u{feff}').unwrap_or(&text);
         let end = TextCursor::new(body, 0).skip_source_start().offset() as usize;
-        let shebang = (end > 0).then(|| body[..end].trim_end_matches('\r').to_owned());
+        let shebang = body.starts_with("#!").then(|| body[..end].trim_end_matches('\r').to_owned());
         let mut file: Self = crate::__parse_owned(&TokenStream::from_source_file(text)?)?;
         file.shebang = shebang;
         Ok(file)

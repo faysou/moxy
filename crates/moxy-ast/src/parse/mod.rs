@@ -63,12 +63,15 @@ macro_rules! parse_file {
     }};
 }
 
-/// Parse source file(s) into a typed AST node, returning `Result<T, ParseError>`.
+/// Parse every source file that matches the glob patterns, relative to the
+/// calling crate's manifest directory, into a `Vec<File>`.
 ///
 /// Each file is read with [`File::from_source_file`](crate::File::from_source_file),
 /// which skips a byte order mark and keeps a shebang line in `File::shebang`.
 ///
-/// The type can be given explicitly with `as T` or inferred from context.
+/// # Panics
+///
+/// Panics when a pattern is not valid or a file cannot be read or parsed.
 ///
 /// # Example
 /// ```ignore

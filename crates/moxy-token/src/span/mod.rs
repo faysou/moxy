@@ -23,6 +23,7 @@ pub enum Span {
 
 // Every token holds a span, so its size is kept: the fallback span's nonzero
 // generation leaves room for the compiler span beside it
+#[cfg(test)]
 const _: () = assert!(std::mem::size_of::<Span>() == 12);
 
 impl Span {

@@ -456,3 +456,20 @@ fn an_invalid_literal_is_reported_where_it_fails() {
         ("invalid literal", 4)
     );
 }
+
+// Two spans of no source join by their positions, as before generations
+#[test]
+fn spans_of_no_source_join_by_their_positions() {
+    use moxy::token::Cursor;
+
+    let joined = Cursor::new("a", 0).span().join(Cursor::new("abc", 5).span());
+    assert_eq!(joined.byte_range(), 0..6);
+}
+
+// An item after a shebang line is located on the line after it
+#[test]
+fn an_item_after_a_shebang_line_keeps_its_line_and_column() {
+    let file = File::from_source_file("#!/bin/sh\n  fn f() {}".to_owned()).unwrap();
+    let start = moxy::token::Spanner::span(&file.items[0]).start();
+    assert_eq!((start.line(), start.column()), (1, 2));
+}

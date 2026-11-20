@@ -172,3 +172,21 @@ fn visitors_reach_the_fields_and_base_of_a_struct_literal() {
     moxy::ast::VisitMut::visit_expr_mut(&mut Rename, &mut expression);
     assert_eq!(expression.to_token_stream().to_string(), "S {a : renamed , b , .. renamed}");
 }
+
+// The formatter writes a shebang only when it reads back as one: a single
+// line that starts with `#!` and no inner attribute
+#[test]
+fn a_shebang_that_would_read_back_otherwise_fails_to_format() {
+    for (shebang, formats) in [
+        ("#!/bin/sh", true),
+        ("#!", true),
+        ("/bin/sh", false),
+        ("#![a]", false),
+        ("#! [a]", false),
+        ("#!/bin/sh\nfn g() {}", false),
+    ] {
+        let mut file: File = moxy::parse!("fn f() {}").unwrap();
+        file.shebang = Some(shebang.to_owned());
+        assert_eq!(moxy::fmt!(&file).is_ok(), formats, "`{shebang}`");
+    }
+}

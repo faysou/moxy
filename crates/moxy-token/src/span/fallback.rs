@@ -88,15 +88,15 @@ impl Span {
         self.generation.get() == other.generation.get() && self.start >= other.start && self.end <= other.end
     }
 
-    // A span of no source gives way to the other one; positions of two
-    // generations do not compare, so joining them keeps the first span
+    // Positions of two generations do not compare, so joining them keeps the
+    // span that has a source
     pub const fn join(self, other: Self) -> Self {
-        if self.generation.get() == Self::NO_SOURCE.get() {
-            return other;
-        }
-
         if self.generation.get() != other.generation.get() {
-            return self;
+            return if self.generation.get() == Self::NO_SOURCE.get() {
+                other
+            } else {
+                self
+            };
         }
 
         let start = if self.start < other.start { self.start } else { other.start };

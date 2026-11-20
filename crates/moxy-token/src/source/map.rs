@@ -116,11 +116,15 @@ impl SourceMap {
     /// # Panics
     ///
     /// Panics on a text of `u32::MAX` bytes or more, which 32-bit positions
-    /// cannot hold; the lexer refuses such a text before it gets here.
+    /// cannot hold with the last one free; the lexer refuses such a text
+    /// before it gets here.
     pub fn push(&mut self, src: impl Into<String>) -> Span {
         let text = src.into();
         let len = u64::try_from(text.len()).unwrap_or(u64::MAX);
-        assert!(len < u64::from(u32::MAX), "a source of 4 GiB or more has no 32-bit positions");
+        assert!(
+            len < u64::from(u32::MAX),
+            "a source of `u32::MAX` bytes or more has no 32-bit positions"
+        );
 
         // The last position stays free, so a span one past the end of a
         // source still fits

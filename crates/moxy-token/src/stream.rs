@@ -412,7 +412,7 @@ impl TokenStream {
         // Positions are 32 bits, and the last one stays free
         if s.len() >= u32::MAX as usize {
             return LexError::new(Span::call_site())
-                .message("a source of 4 GiB or more cannot be lexed")
+                .message("a source of `u32::MAX` bytes or more cannot be lexed")
                 .into();
         }
 
