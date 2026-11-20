@@ -73,7 +73,7 @@ pub fn expand(tokens: TokenStream) -> TokenStream {
                     ::moxy::ast::MetaContent::Unit => {
                         return Err(::moxy::ast::ParseError::new_spanned(
                             &meta.path,
-                            "expected parenthesized meta arguments, found end of input",
+                            "expected parenthesized meta arguments, found no value",
                         ));
                     }
                 };

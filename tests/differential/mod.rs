@@ -141,8 +141,9 @@ fn corpus() {
 // The style of every error message: lowercase with no closing period, code in
 // backticks (double ones with spaces around code that holds a backtick), no
 // type names (an acronym such as `ASCII` is fine), no article after
-// "expected", and an "expected" message names what it found: code, or one of
-// the forms `end of input`, `end of group`, `empty group`, and `trait alias`
+// any "expected", and an "expected" message names what it found: code, or one
+// of the forms `end of input`, `end of group`, `empty group`, `trait alias`,
+// `no value` (a meta with no value after its name), and `no rules`
 pub(crate) fn follows_style(message: &str) -> bool {
     // The prose of a message, without its quoted code
     let mut prose = String::new();
@@ -168,7 +169,16 @@ pub(crate) fn follows_style(message: &str) -> bool {
             || (found.len() > 1 && found.starts_with('`') && found.ends_with('`'))
     };
     let found = message.split_once(", found ").is_none_or(|(_, found)| {
-        quoted(found) || ["end of input", "end of group", "empty group", "trait alias"].contains(&found)
+        quoted(found)
+            || [
+                "end of input",
+                "end of group",
+                "empty group",
+                "trait alias",
+                "no value",
+                "no rules",
+            ]
+            .contains(&found)
     });
 
     message.starts_with(|ch: char| ch.is_lowercase() || ch == '`')
@@ -176,8 +186,10 @@ pub(crate) fn follows_style(message: &str) -> bool {
         && !prose.contains('"')
         && !prose.contains("received")
         && !prose.to_lowercase().contains("eof")
-        && !message.starts_with("expected a ")
-        && !message.starts_with("expected an ")
+        && message
+            .split("expected ")
+            .skip(1)
+            .all(|rest| !["a ", "an ", "the "].iter().any(|article| rest.starts_with(article)))
         && (!message.starts_with("expected ") || message.contains(", found "))
         && prose
             .split(|ch: char| !ch.is_alphanumeric())
@@ -185,10 +197,8 @@ pub(crate) fn follows_style(message: &str) -> bool {
         && found
 }
 
-// Every message moxy gives for a corpus source it rejects follows one style:
-// lowercase with no closing period, code in backticks, no type names (an
-// acronym such as `ASCII` is fine), and
-// "expected X, found `y`" or "found end of input" where it names what it found
+// Every message moxy gives for a corpus source it rejects follows the style
+// of `follows_style`
 #[test]
 fn error_messages_follow_one_style() {
     let mut messages = 0;

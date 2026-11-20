@@ -64,10 +64,7 @@ impl<'a> Parser<'a> {
     // tokens, the delimiter that closes it, or else the end of the input
     fn found(&self) -> String {
         match (self.curr(), self.group) {
-            (Some(token), _) => match received(token) {
-                text if text.is_empty() => "empty group".to_owned(),
-                text => quoted(&text),
-            },
+            (Some(token), _) => found_token(token),
             (None, Some((Delim::None, _))) => "end of group".to_owned(),
             (None, Some((delim, _))) => quoted(&delim.close().to_string()),
             (None, None) => "end of input".to_owned(),
@@ -249,10 +246,52 @@ pub(crate) fn received(token: &TokenTree) -> String {
 // A node a message names as found, by its first token, so the message stays
 // short and spaced as written
 pub(crate) fn found_node(node: &impl moxy_token::ToTokenStream) -> String {
-    match node.to_token_stream().first() {
-        Some(token) => quoted(&received(token)),
+    found_tokens(&node.to_token_stream())
+}
+
+// Tokens a message names as found: whole when they are a short path, as
+// `a::b`, or else by their first token
+pub(crate) fn found_tokens(tokens: &TokenStream) -> String {
+    let path = |token: &TokenTree| match token {
+        TokenTree::Ident(_) | TokenTree::Keyword(_) => true,
+        // `::` is two `:` tokens in a stream
+        TokenTree::Punct(punct) => matches!(punct.as_str(), ":" | "::"),
+        _ => false,
+    };
+    let short = tokens.len() <= 7 && tokens.iter().all(path);
+
+    match tokens.first() {
+        Some(_) if short && tokens.len() > 1 => quoted(&compact(tokens)),
+        Some(token) => found_token(token),
         None => "end of input".to_owned(),
     }
+}
+
+// A token as a message names it, an empty group without delimiters included
+fn found_token(token: &TokenTree) -> String {
+    match received(token) {
+        text if text.is_empty() => "empty group".to_owned(),
+        text => quoted(&text),
+    }
+}
+
+// The text of a path's tokens, with no space around `::`
+fn compact(tokens: &TokenStream) -> String {
+    let mut text = String::new();
+    let mut word = false;
+
+    for token in tokens.iter() {
+        let is_word = !matches!(token, TokenTree::Punct(_));
+
+        if word && is_word {
+            text.push(' ');
+        }
+
+        text.push_str(&token.to_string());
+        word = is_word;
+    }
+
+    text
 }
 
 // Code in a message in backticks, or in double ones with spaces when it holds

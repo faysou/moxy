@@ -28,7 +28,7 @@ impl Meta {
         P: FnMut(&Self) -> Result<(), ParseError>,
     {
         let MetaContent::List(group) = &self.content else {
-            return ParseError::new(self.span(), "expected delimited list, as in `name(...)`").into();
+            return expected_value(self, "delimited list, as in `name(...)`").into();
         };
 
         let parser = Parser::from_group(group);
@@ -149,7 +149,11 @@ impl Parse for MetaContent {
             // As in rustc, the value is an expression, as `"a.rs"` in
             // `#[path = "a.rs"]`
             let Some(end) = Expr::skip(parser.cursor()) else {
-                return parser.expected("expression").into();
+                // The expression's own error says where it fails, as at the
+                // `]` of `#[a = 1 +]`
+                return Err(Expr::parse(&parser.fork())
+                    .err()
+                    .unwrap_or_else(|| parser.expected("expression")));
             };
 
             parser.seek(&Parser::from_cursor(end));
@@ -210,7 +214,7 @@ impl FromMeta for bool {
             MetaContent::Expr { expr, .. } => {
                 let Expr::Lit(ExprLit {
                     lit: Lit::Bool(value), ..
-                }) = Expr::parse(&Parser::from_tokens(expr))?
+                }) = value(expr)
                 else {
                     return expected_value(meta, "boolean literal").into();
                 };
@@ -228,7 +232,7 @@ impl FromMeta for String {
         };
         let Expr::Lit(ExprLit {
             lit: Lit::Str(value), ..
-        }) = Expr::parse(&Parser::from_tokens(expr))?
+        }) = value(expr)
         else {
             return expected_value(meta, "string literal").into();
         };
@@ -243,7 +247,7 @@ impl FromMeta for char {
         };
         let Expr::Lit(ExprLit {
             lit: Lit::Char(value), ..
-        }) = Expr::parse(&Parser::from_tokens(expr))?
+        }) = value(expr)
         else {
             return expected_value(meta, "character literal").into();
         };
@@ -258,7 +262,7 @@ impl FromMeta for u8 {
         };
         let Expr::Lit(ExprLit {
             lit: Lit::Int(value), ..
-        }) = Expr::parse(&Parser::from_tokens(expr))?
+        }) = value(expr)
         else {
             return expected_value(meta, "integer literal").into();
         };
@@ -274,7 +278,7 @@ impl FromMeta for u16 {
         };
         let Expr::Lit(ExprLit {
             lit: Lit::Int(value), ..
-        }) = Expr::parse(&Parser::from_tokens(expr))?
+        }) = value(expr)
         else {
             return expected_value(meta, "integer literal").into();
         };
@@ -290,7 +294,7 @@ impl FromMeta for u32 {
         };
         let Expr::Lit(ExprLit {
             lit: Lit::Int(value), ..
-        }) = Expr::parse(&Parser::from_tokens(expr))?
+        }) = value(expr)
         else {
             return expected_value(meta, "integer literal").into();
         };
@@ -306,7 +310,7 @@ impl FromMeta for u64 {
         };
         let Expr::Lit(ExprLit {
             lit: Lit::Int(value), ..
-        }) = Expr::parse(&Parser::from_tokens(expr))?
+        }) = value(expr)
         else {
             return expected_value(meta, "integer literal").into();
         };
@@ -322,7 +326,7 @@ impl FromMeta for u128 {
         };
         let Expr::Lit(ExprLit {
             lit: Lit::Int(value), ..
-        }) = Expr::parse(&Parser::from_tokens(expr))?
+        }) = value(expr)
         else {
             return expected_value(meta, "integer literal").into();
         };
@@ -337,7 +341,7 @@ impl FromMeta for usize {
         };
         let Expr::Lit(ExprLit {
             lit: Lit::Int(value), ..
-        }) = Expr::parse(&Parser::from_tokens(expr))?
+        }) = value(expr)
         else {
             return expected_value(meta, "integer literal").into();
         };
@@ -351,7 +355,7 @@ impl FromMeta for i8 {
         let MetaContent::Expr { expr, .. } = &meta.content else {
             return expected_value(meta, "integer literal").into();
         };
-        let expr = Expr::parse(&Parser::from_tokens(expr))?;
+        let expr = value(expr);
         let value = match expr {
             Expr::Lit(ExprLit {
                 lit: Lit::Int(value), ..
@@ -376,7 +380,7 @@ impl FromMeta for i16 {
         let MetaContent::Expr { expr, .. } = &meta.content else {
             return expected_value(meta, "integer literal").into();
         };
-        let expr = Expr::parse(&Parser::from_tokens(expr))?;
+        let expr = value(expr);
         let value = match expr {
             Expr::Lit(ExprLit {
                 lit: Lit::Int(value), ..
@@ -401,7 +405,7 @@ impl FromMeta for i32 {
         let MetaContent::Expr { expr, .. } = &meta.content else {
             return expected_value(meta, "integer literal").into();
         };
-        let expr = Expr::parse(&Parser::from_tokens(expr))?;
+        let expr = value(expr);
         let value = match expr {
             Expr::Lit(ExprLit {
                 lit: Lit::Int(value), ..
@@ -426,7 +430,7 @@ impl FromMeta for i64 {
         let MetaContent::Expr { expr, .. } = &meta.content else {
             return expected_value(meta, "integer literal").into();
         };
-        let expr = Expr::parse(&Parser::from_tokens(expr))?;
+        let expr = value(expr);
         let value = match expr {
             Expr::Lit(ExprLit {
                 lit: Lit::Int(value), ..
@@ -451,7 +455,7 @@ impl FromMeta for i128 {
         let MetaContent::Expr { expr, .. } = &meta.content else {
             return expected_value(meta, "integer literal").into();
         };
-        let expr = Expr::parse(&Parser::from_tokens(expr))?;
+        let expr = value(expr);
         match expr {
             Expr::Lit(ExprLit {
                 lit: Lit::Int(value), ..
@@ -484,7 +488,7 @@ impl FromMeta for isize {
         let MetaContent::Expr { expr, .. } = &meta.content else {
             return expected_value(meta, "integer literal").into();
         };
-        let expr = Expr::parse(&Parser::from_tokens(expr))?;
+        let expr = value(expr);
         let value = match expr {
             Expr::Lit(ExprLit {
                 lit: Lit::Int(value), ..
@@ -509,7 +513,7 @@ impl FromMeta for f32 {
         let MetaContent::Expr { expr, .. } = &meta.content else {
             return expected_value(meta, "float literal").into();
         };
-        let expr = Expr::parse(&Parser::from_tokens(expr))?;
+        let expr = value(expr);
         let (negative, expr) = match expr {
             Expr::Unary(ExprUnary {
                 op: UnOp::Neg(_), expr, ..
@@ -535,7 +539,7 @@ impl FromMeta for f64 {
         let MetaContent::Expr { expr, .. } = &meta.content else {
             return expected_value(meta, "float literal").into();
         };
-        let expr = Expr::parse(&Parser::from_tokens(expr))?;
+        let expr = value(expr);
         let (negative, expr) = match expr {
             Expr::Unary(ExprUnary {
                 op: UnOp::Neg(_), expr, ..
@@ -560,10 +564,16 @@ impl FromMeta for f64 {
 // follows its name: nothing, a group, or the value's first token
 fn expected_value(meta: &Meta, expected: &str) -> ParseError {
     let found = match &meta.content {
-        MetaContent::Unit => "end of input".to_owned(),
+        MetaContent::Unit => "no value".to_owned(),
         MetaContent::List(group) => found_node(group),
         MetaContent::Expr { expr, .. } => found_node(expr),
     };
 
     ParseError::new(meta.span(), format!("expected {expected}, found {found}"))
+}
+
+// The value of a meta, which must read as one expression, as `1` in `a = 1`;
+// any other value reads as no expression, so the caller names what it found
+fn value(tokens: &TokenStream) -> Expr {
+    crate::__parse_owned(tokens).unwrap_or_else(|_| Expr::Verbatim(TokenStream::new()))
 }

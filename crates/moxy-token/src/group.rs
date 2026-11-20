@@ -13,11 +13,11 @@ pub struct Group {
 impl Group {
     #[inline]
     pub fn new(delim: Delim, stream: TokenStream) -> Self {
-        let content_span = stream.span();
-        let span = if content_span.is_empty() {
-            DelimSpan::new(Span::call_site(), Span::call_site())
-        } else {
-            DelimSpan::new(content_span, content_span)
+        // A group built in code has no delimiters in a source, so it opens at
+        // its first token and closes at its last
+        let span = match (stream.first(), stream.last()) {
+            (Some(first), Some(last)) => DelimSpan::new(first.span(), last.span()),
+            _ => DelimSpan::new(Span::call_site(), Span::call_site()),
         };
 
         Self {

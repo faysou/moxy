@@ -2330,3 +2330,70 @@ fn heavy_forms_built_to_the_limit_run_every_traversal() {
     // expression, and its block)
     assert_eq!(limits, [143, 143, 287, 287, 95]);
 }
+
+// A message names what follows where it can: no value after a meta's name, the
+// value a `FromMeta` literal rejects, a path whole when it is short, and an
+// empty group
+#[test]
+fn messages_name_what_follows() {
+    use moxy::ast::{FromMeta, Meta, ParseError};
+    use moxy::token::{Cursor, Group, LitBool, Scan};
+
+    let unit: Meta = moxy::parse!("name").unwrap();
+    let sum: Meta = moxy::parse!("a = 1 + 2").unwrap();
+    let attr = moxy::parse!("#[a = 1 +]" as moxy::ast::Attribute).err().unwrap();
+    let path: moxy::ast::Path = moxy::parse!("a::b").unwrap();
+    let empty = TokenStream::from_iter([TokenTree::Group(Group::new(Delim::None, TokenStream::new()))]);
+    let word = LitBool::scan(Cursor::new("x", 0)).err().unwrap();
+
+    assert_eq!(
+        u8::from_meta(&unit).err().unwrap().message(),
+        "expected integer literal, found no value"
+    );
+    assert_eq!(
+        u8::from_meta(&sum).err().unwrap().message(),
+        "expected integer literal, found `1`"
+    );
+    assert_eq!(attr.message(), "expected expression, found `]`");
+    assert_eq!(
+        unit.for_each(|_| Ok(())).err().unwrap().message(),
+        "expected delimited list, as in `name(...)`, found no value"
+    );
+    assert_eq!(
+        ParseError::expected(&path, "identifier").message(),
+        "expected identifier, found `a::b`"
+    );
+    assert_eq!(
+        ParseError::expected(&empty, "identifier").message(),
+        "expected identifier, found empty group"
+    );
+    assert_eq!(word.to_string(), "expected boolean literal, found `x`");
+
+    for message in [
+        "expected integer literal, found no value",
+        "expected delimited list, as in `name(...)`, found no value",
+        "expected identifier, found `a::b`",
+    ] {
+        assert!(super::differential::follows_style(message), "`{message}`");
+    }
+
+    for message in ["expected the end, found `a`", "unexpected `a`, expected an item, found `a`"] {
+        assert!(!super::differential::follows_style(message), "`{message}`");
+    }
+}
+
+// The end of a group built in code is its last token, where an error at the end
+// of its tokens points
+#[test]
+fn a_built_group_closes_at_its_last_token() {
+    use moxy::token::Group;
+
+    let tokens: TokenStream = "a b".parse().unwrap();
+    let last = tokens.iter().last().unwrap().span();
+    let group = Group::new(Delim::Brace, tokens);
+    let parser = moxy::ast::Parser::from_group(&group);
+    parser.advance();
+    parser.advance();
+
+    assert_eq!(parser.expected("`c`").span().byte_range(), last.byte_range());
+}

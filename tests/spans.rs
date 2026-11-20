@@ -457,7 +457,7 @@ fn an_invalid_literal_is_reported_where_it_fails() {
     );
 }
 
-// Two spans of no source join by their positions, as before generations
+// Two spans of no source join by their positions
 #[test]
 fn spans_of_no_source_join_by_their_positions() {
     use moxy::token::Cursor;
