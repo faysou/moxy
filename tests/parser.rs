@@ -1441,7 +1441,7 @@ fn inner_block(block: &mut moxy::ast::StmtBlock) -> &mut moxy::ast::StmtBlock {
 fn a_tree_built_past_the_depth_limit_is_reported() {
     use moxy::ast::{Expr, Pattern, StmtBlock, Type};
 
-    let message = format!("nesting is deeper than {} levels", moxy::token::MAX_DEPTH);
+    let message = format!("the tree nests more than {} nodes deep", moxy::token::MAX_NESTED_NODES);
     let (reported, formatted) = on_small_stack(move || {
         let n = 100_000;
         let expr = built::<Expr>("-x", "x", n, negated);
@@ -1673,6 +1673,9 @@ fn a_macro_body_built_deep_formats_to_an_error() {
 
     assert_eq!(
         formatted,
-        Err(format!("nesting is deeper than {} levels", moxy::token::MAX_DEPTH))
+        Err(format!(
+            "the tree nests more than {} nodes deep",
+            moxy::token::MAX_NESTED_NODES
+        ))
     );
 }

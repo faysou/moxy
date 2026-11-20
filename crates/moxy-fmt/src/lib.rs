@@ -30,7 +30,7 @@ pub use node::*;
 
 use std::fmt::Write;
 
-use moxy_token::{MAX_DEPTH, MAX_NESTED_NODES, TokenStream};
+use moxy_token::{MAX_NESTED_NODES, TokenStream};
 
 /// Format a value that implements [`Format`] into a `String`.
 ///
@@ -299,11 +299,20 @@ impl Formatter {
 
 impl<T: Format, P: std::fmt::Display> Format for moxy_ast::List<T, P> {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
+        // No separator follows the last element; a one-element tuple writes
+        // its comma itself
         f.group(|f| {
-            for pair in self.pairs() {
+            let mut pairs = self.pairs().peekable();
+
+            while let Some(pair) = pairs.next() {
                 match pair {
                     moxy_ast::Pair::List(t, p) => {
                         t.format(f)?;
+
+                        if pairs.peek().is_none() {
+                            break;
+                        }
+
                         let sep = p.to_string();
 
                         if sep.trim() == "+" {
@@ -354,5 +363,5 @@ impl std::fmt::Display for Mode {
 }
 
 fn too_deep() -> FmtError {
-    FmtError::unsupported(format!("nesting is deeper than {MAX_DEPTH} levels"))
+    FmtError::unsupported(format!("the tree nests more than {MAX_NESTED_NODES} nodes deep"))
 }

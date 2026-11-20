@@ -34,7 +34,7 @@ impl Format for Signature {
         self.generics.format(f)?;
         f.text("(")?;
         f.group(|f| {
-            // A trailing comma is dropped, as after a variadic in `fn f(a: u8, ...,);`
+            // No comma follows the last parameter
             for (i, param) in self.params.inner.inputs.iter().enumerate() {
                 if i > 0 {
                     f.text(", ")?;

@@ -260,3 +260,26 @@ fn a_const_parameter_default_is_a_block_a_literal_or_a_name() {
         assert!(moxy::parse!(source as moxy::ast::Item).is_err(), "`{source}`");
     }
 }
+
+// A list's formatting writes no separator after its last element, except the
+// comma a one-element tuple needs
+#[test]
+fn formatted_lists_drop_a_trailing_separator() {
+    for (source, formatted) in [
+        ("type U = Box<dyn Fn(A,)>;", "type U = Box<dyn Fn(A)>;"),
+        ("type V = A<B,>;", "type V = A<B>;"),
+        ("struct S<T,>(T,);", "struct S<T>(T);"),
+        ("use a::{b, c,};", "use a::{b, c};"),
+        ("fn g<'a: 'a +>() {}", "fn g<'a: 'a>() {}"),
+        ("type T = (u8,);", "type T = (u8,);"),
+        (
+            "fn f() { let (b,) = (a,); g(a, b,); }",
+            "fn f() {\n\tlet (b,) = (a,);\n\tg(a, b);\n}",
+        ),
+        ("fn f() { let (..) = a; }", "fn f() {\n\tlet (..) = a;\n}"),
+        ("type F = fn(#[a] u8);", "type F = fn(#[a] u8);"),
+    ] {
+        let item: Item = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        assert_eq!(moxy::fmt!(&item).unwrap(), formatted, "`{source}`");
+    }
+}

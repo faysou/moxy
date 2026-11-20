@@ -35,6 +35,12 @@ impl Format for TypeTuple {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
         f.text("(")?;
         self.elems.inner.format(f)?;
+
+        // A tuple of one element keeps its comma, as in `(a,)`
+        if self.elems.inner.len() == 1 && self.elems.inner.is_trailing() {
+            f.text(",")?;
+        }
+
         f.text(")")
     }
 }
@@ -107,7 +113,7 @@ impl Format for TypeBareFn {
 
         f.text("fn(")?;
 
-        // A trailing comma is dropped, as after a variadic in `fn(u8, ...,)`
+        // No comma follows the last parameter
         f.group(|f| {
             for (i, param) in self.params.inner.inputs.iter().enumerate() {
                 if i > 0 {
@@ -137,6 +143,11 @@ impl Format for BareFnParam {
 
 impl Format for BareFnArg {
     fn format(&self, f: &mut Formatter) -> Result<(), FmtError> {
+        for attr in self.attrs.iter() {
+            attr.format(f)?;
+            f.text(" ")?;
+        }
+
         if let Some((name, _)) = &self.name {
             name.format(f)?;
             f.text(": ")?;
