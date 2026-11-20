@@ -31,13 +31,16 @@ fn moxy_render(kind: &str, source: &str) -> Rendering {
         Ok((canon(&node), strip(&node.to_token_stream().to_string())))
     }
 
-    // A file lexes as a source file, as `syn::parse_file` reads one
-    let lexed = if kind == "f" {
-        TokenStream::from_source_file(source.to_owned())
-    } else {
-        TokenStream::from_string(source.to_owned())
-    };
-    let tokens = lexed.map_err(|error| error.to_string())?;
+    // A file is read as the text of a source file, as `syn::parse_file` reads
+    // one
+    if kind == "f" {
+        let file = m::File::from_source_file(source.to_owned()).map_err(|error| error.message().to_string())?;
+        let items = file.items.iter().map(mitem).collect::<Vec<_>>().join("\n");
+        let tree = format!("file{}\n{items}", mattrs(&file.attrs));
+        return Ok((tree, strip(&file.to_token_stream().to_string())));
+    }
+
+    let tokens = TokenStream::from_string(source.to_owned()).map_err(|error| error.to_string())?;
 
     match kind {
         "e" => go::<m::Expr>(&tokens, mexpr),
@@ -45,10 +48,6 @@ fn moxy_render(kind: &str, source: &str) -> Rendering {
         "p" => go::<m::Pattern>(&tokens, mpat),
         "t" => go::<m::Type>(&tokens, mtype),
         "i" => go::<m::Item>(&tokens, mitem),
-        "f" => go::<m::File>(&tokens, |file| {
-            let items = file.items.iter().map(mitem).collect::<Vec<_>>().join("\n");
-            format!("file{}\n{items}", mattrs(&file.attrs))
-        }),
         _ => panic!("unknown kind `{kind}`"),
     }
 }
@@ -452,14 +451,23 @@ fn collect_rust_files(dir: &Path, paths: &mut Vec<PathBuf>) {
 // parses parses again, and formats to the same text
 #[test]
 fn formatting_every_parsed_corpus_source_is_idempotent() {
-    fn again<T: m::Parse + moxy::fmt::Format>(source: &str) -> Option<Result<(), String>> {
-        let node: T = moxy::parse!(source).ok()?;
-        let Ok(first) = moxy::fmt!(&node) else {
-            return None;
+    fn tokens<T: m::Parse>(source: &str) -> Option<T> {
+        moxy::parse!(source).ok()
+    }
+
+    // A file is read as the text of a source file
+    fn file(source: &str) -> Option<m::File> {
+        m::File::from_source_file(source.to_owned()).ok()
+    }
+
+    fn again<T: moxy::fmt::Format>(source: &str, read: fn(&str) -> Option<T>) -> Option<Result<(), String>> {
+        let node: T = read(source)?;
+        let first = match moxy::fmt!(&node) {
+            Ok(first) => first,
+            Err(error) => return Some(Err(format!("fails to format: {error}"))),
         };
-        let reparsed: T = match moxy::parse!((first.as_str())) {
-            Ok(reparsed) => reparsed,
-            Err(error) => return Some(Err(format!("formats to `{first}`, which fails: {}", error.message()))),
+        let Some(reparsed) = read(&first) else {
+            return Some(Err(format!("formats to `{first}`, which fails to parse")));
         };
         let second = moxy::fmt!(&reparsed).map_err(|error| error.to_string());
 
@@ -476,12 +484,12 @@ fn formatting_every_parsed_corpus_source_is_idempotent() {
         let (kind, source) = line.split_once(": ").unwrap();
         let source = source.replace("\\n", "\n");
         let outcome = match kind {
-            "e" => again::<m::Expr>(&source),
-            "b" => again::<m::StmtBlock>(&source),
-            "p" => again::<m::Pattern>(&source),
-            "t" => again::<m::Type>(&source),
-            "i" => again::<m::Item>(&source),
-            "f" => again::<m::File>(&source),
+            "e" => again(&source, tokens::<m::Expr>),
+            "b" => again(&source, tokens::<m::StmtBlock>),
+            "p" => again(&source, tokens::<m::Pattern>),
+            "t" => again(&source, tokens::<m::Type>),
+            "i" => again(&source, tokens::<m::Item>),
+            "f" => again(&source, file),
             _ => panic!("unknown kind `{kind}`"),
         };
 

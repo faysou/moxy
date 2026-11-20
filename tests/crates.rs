@@ -190,3 +190,17 @@ fn a_shebang_that_would_read_back_otherwise_fails_to_format() {
         assert_eq!(moxy::fmt!(&file).is_ok(), formats, "`{shebang}`");
     }
 }
+
+// A file that starts with an inner attribute has no shebang, and formats and
+// compares as the same text parsed from tokens
+#[test]
+fn a_file_starting_with_an_inner_attribute_has_no_shebang() {
+    for source in ["#![a]\nfn f() {}", "#! [a]\nfn f() {}"] {
+        let file = File::from_source_file(source.to_owned()).unwrap();
+        let tokens: File = moxy::parse!(source).unwrap();
+
+        assert_eq!(file.shebang, None, "`{source}`");
+        assert_eq!(moxy::fmt!(&file).unwrap(), "#![a]\nfn f() {}", "`{source}`");
+        assert!(file == tokens, "`{source}`");
+    }
+}
