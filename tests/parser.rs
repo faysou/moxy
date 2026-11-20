@@ -1864,6 +1864,8 @@ const LEAVES: &[(char, &str)] = &[
     ('e', "m!([[[x]]])"),
     ('e', "#[a((b))] x"),
     ('e', "#[a((b))] x + 0"),
+    ('e', "#[a((b))] .."),
+    ('e', "#[a((b))] ..x"),
     ('e', "0*0+0<<0&0^0|0==0&&0||0"),
     ('e', "a = 0.. = 0.. = 0"),
     ('t', "u8"),
@@ -2225,33 +2227,52 @@ fn trees_of_list_nodes_built_to_the_limit_run_every_traversal() {
 
 // Attributes read before their expression or closure parameter has entered its
 // level count from that level, and a block-like statement or match arm parsed
-// as the root takes the level its block or match would give it, so these
-// trees, which reached the node limit, are depth errors
+// as the root takes the level its block or match would give it, so each tree
+// here parses one level short of the limit and is a depth error at it, where
+// its nodes would pass 288.
+//
+// A range without a start takes no level, so `#[a] ..` under closures stops one
+// level earlier than a bare `..`: the depth check counts the range as a node,
+// and without the attribute's level its argument groups would take
+// `(#[a((b))] ..)*0+0`, a composition leaf, past 288 nodes.
 #[test]
 fn attributes_and_block_like_roots_take_their_levels() {
     use moxy::ast::{Expr, Stmt};
 
     let message = format!("nesting is deeper than {} levels", moxy::token::MAX_DEPTH);
+
+    // Each row one level short of the limit at `0` and at it at `1`
     let errors = on_small_stack(|| {
-        let exprs = [
-            format!("{}|| #[a((b))] x + 0", "|| 0 + ".repeat(142)),
-            format!("0 + {}|#[a{}b{}] x| x", "|| 0 + ".repeat(99), "(".repeat(45), ")".repeat(45)),
-        ]
-        .map(|source| moxy::parse!(source as Expr).err().map(|error| error.message().to_string()));
-        let stmts = [
-            format!("if 0 + {}x {{}}", "|| 0 + ".repeat(143)),
-            format!("while 0 + {}x {{}}", "|| 0 + ".repeat(143)),
-            format!("match 0 + {}x {{}}", "|| 0 + ".repeat(143)),
-            format!("for a in 0 + {}x {{}}", "|| 0 + ".repeat(143)),
-            format!("{}if 0 + x {{}}{}", "unsafe { ".repeat(143), " }".repeat(143)),
-        ]
-        .map(|source| moxy::parse!(source as Stmt).err().map(|error| error.message().to_string()));
-        (exprs, stmts)
+        [0, 1].map(|past| {
+            let exprs = [
+                format!("{}|| #[a((b))] x + 0", "|| 0 + ".repeat(141 + past)),
+                format!(
+                    "0 + {}|#[a{}b{}] x| x",
+                    "|| 0 + ".repeat(99),
+                    "(".repeat(44 + past),
+                    ")".repeat(44 + past)
+                ),
+                format!("{}#[a] ..", "|| ".repeat(143 + past)),
+            ]
+            .map(|source| moxy::parse!(source as Expr).err().map(|error| error.message().to_string()));
+            let stmts = [
+                format!("if 0 + {}x {{}}", "|| 0 + ".repeat(142 + past)),
+                format!("while 0 + {}x {{}}", "|| 0 + ".repeat(142 + past)),
+                format!("match 0 + {}x {{}}", "|| 0 + ".repeat(142 + past)),
+                format!("for a in 0 + {}x {{}}", "|| 0 + ".repeat(142 + past)),
+                format!("{}if 0 + x {{}}{}", "unsafe { ".repeat(142 + past), " }".repeat(142 + past)),
+            ]
+            .map(|source| moxy::parse!(source as Stmt).err().map(|error| error.message().to_string()));
+            (exprs, stmts)
+        })
     });
 
     assert_eq!(
         errors,
-        ([(); 2].map(|_| Some(message.clone())), [(); 5].map(|_| Some(message.clone())))
+        [
+            ([(); 3].map(|_| None), [(); 5].map(|_| None)),
+            ([(); 3].map(|_| Some(message.clone())), [(); 5].map(|_| Some(message.clone())))
+        ]
     );
 }
 
@@ -2274,6 +2295,32 @@ fn impl_member_body(block: &mut moxy::ast::StmtBlock) -> &mut moxy::ast::StmtBlo
         panic!()
     };
     function.body.as_mut().unwrap()
+}
+
+fn trait_member_body(block: &mut moxy::ast::StmtBlock) -> &mut moxy::ast::StmtBlock {
+    let moxy::ast::Stmt::Item(item) = &mut block.stmts.inner[0] else {
+        panic!()
+    };
+    let moxy::ast::Item::Trait(item) = &mut **item else { panic!() };
+    let moxy::ast::TraitItem::Fn(function) = &mut item.items.inner[0] else {
+        panic!()
+    };
+    function.body.as_mut().unwrap()
+}
+
+fn module_content(item: &mut moxy::ast::Item) -> &mut moxy::ast::Item {
+    let moxy::ast::Item::Mod(module) = item else { panic!() };
+    &mut module.content.as_mut().unwrap().items.inner[0]
+}
+
+// A block holding modules nested `n` deep
+fn built_modules(n: usize) -> moxy::ast::StmtBlock {
+    let mut block: moxy::ast::StmtBlock = moxy::parse!("{ mod m {} }").unwrap();
+    let moxy::ast::Stmt::Item(item) = &mut block.stmts.inner[0] else {
+        panic!()
+    };
+    **item = built("mod m { mod m {} }", "mod m {}", n, module_content);
+    block
 }
 
 fn arm_body(expr: &mut moxy::ast::Expr) -> &mut moxy::ast::Expr {
@@ -2308,12 +2355,15 @@ fn heavy_forms_built_to_the_limit_run_every_traversal() {
         let deepest = |past: &dyn Fn(usize) -> bool| (1..).find(|&n| past(n + 1)).unwrap();
         let items = |n| built::<StmtBlock>("{ fn f() {} }", "{}", n, item_body);
         let members = |n| built::<StmtBlock>("{ impl A { fn f() {} } }", "{}", n, impl_member_body);
+        let trait_members = |n| built::<StmtBlock>("{ trait A { fn f() {} } }", "{}", n, trait_member_body);
         let arms = |n| built::<Expr>("match x { _ => y }", "y", n, arm_body);
         let fields = |n| built::<Expr>("S { a: x }", "x", n, field_value);
         let closures = |n| built::<Expr>("|| -> u8 { x }", "x", n, typed_closure_body);
         let limits = [
             deepest(&|n| items(n).nests_past_max_depth()),
             deepest(&|n| members(n).nests_past_max_depth()),
+            deepest(&|n| trait_members(n).nests_past_max_depth()),
+            deepest(&|n| built_modules(n).nests_past_max_depth()),
             deepest(&|n| arms(n).nests_past_max_depth()),
             deepest(&|n| fields(n).nests_past_max_depth()),
             deepest(&|n| closures(n).nests_past_max_depth()),
@@ -2321,16 +2371,18 @@ fn heavy_forms_built_to_the_limit_run_every_traversal() {
 
         traverse(items(limits[0]));
         traverse(members(limits[1]));
-        traverse(arms(limits[2]));
-        traverse(fields(limits[3]));
-        traverse(closures(limits[4]));
+        traverse(trait_members(limits[2]));
+        traverse(built_modules(limits[3]));
+        traverse(arms(limits[4]));
+        traverse(fields(limits[5]));
+        traverse(closures(limits[6]));
         limits
     });
 
-    // A block and an item per level take two of the 288 nodes, an arm body or
-    // a field value one, and a typed closure three (the closure, its block
-    // expression, and its block)
-    assert_eq!(limits, [143, 143, 287, 287, 95]);
+    // A block and an item per level take two of the 288 nodes, a module, an
+    // arm body, or a field value one, and a typed closure three (the closure,
+    // its block expression, and its block). The modules sit in a block.
+    assert_eq!(limits, [143, 143, 143, 286, 287, 287, 95]);
 }
 
 // A message names what follows where it can: no value after a meta's name, the
