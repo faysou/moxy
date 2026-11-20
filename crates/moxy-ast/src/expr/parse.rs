@@ -74,7 +74,7 @@ fn block_like_rest(
         return range_rest(parser, Default::default(), Some(left), ExprContext::NORMAL);
     }
 
-    assignment_rest(parser, left, ExprContext::NORMAL)
+    assignment_rest(parser, left, ExprContext::NORMAL, subtree)
 }
 
 // Counts a level for a range or assignment that wraps a chain of binary
@@ -127,25 +127,36 @@ fn assignment(parser: &Parser, attrs: Attributes, context: ExprContext) -> Resul
         return too_deep(parser);
     }
 
-    assignment_rest(parser, left, context)
+    assignment_rest(parser, left, context, &subtree)
 }
 
-// An assignment whose left side has parsed, or the left side alone
-fn assignment_rest(parser: &Parser, left: Box<Expr>, context: ExprContext) -> Result<Box<Expr>, ParseError> {
+// An assignment whose left side has parsed, or the left side alone.
+// `subtree` measures from before the left side.
+fn assignment_rest(
+    parser: &Parser,
+    left: Box<Expr>,
+    context: ExprContext,
+    subtree: &moxy_token::__private::Subtree,
+) -> Result<Box<Expr>, ParseError> {
     if <Token![=]>::peek(parser.cursor()) && !<Token![==]>::peek(parser.cursor()) && !<Token![=>]>::peek(parser.cursor()) {
-        return assign(parser, left, context);
+        return assign(parser, left, context, subtree);
     }
 
     // Compound assignment is right-associative and binds looser than a range:
     // `x += y + z` adds first, `a += b = c` assigns `c` to `b` first
     if peek_binary(parser.cursor()).is_some_and(|op| Precedence::of(&op) == Precedence::Assign) {
-        return compound_assign(parser, left, context);
+        return compound_assign(parser, left, context, subtree);
     }
 
     Ok(left)
 }
 
-fn assign(parser: &Parser, left: Box<Expr>, context: ExprContext) -> Result<Box<Expr>, ParseError> {
+fn assign(
+    parser: &Parser,
+    left: Box<Expr>,
+    context: ExprContext,
+    subtree: &moxy_token::__private::Subtree,
+) -> Result<Box<Expr>, ParseError> {
     let eq = <_ as Parse>::parse(parser)?;
     let right = assignment_right(parser, context)?;
     let ranged = matches!(*right, Expr::Range(_));
@@ -156,16 +167,21 @@ fn assign(parser: &Parser, left: Box<Expr>, context: ExprContext) -> Result<Box<
         right,
     });
 
-    continue_after_range(parser, assignment, ranged, context)
+    continue_after_range(parser, assignment, ranged, context, subtree)
 }
 
-fn compound_assign(parser: &Parser, left: Box<Expr>, context: ExprContext) -> Result<Box<Expr>, ParseError> {
+fn compound_assign(
+    parser: &Parser,
+    left: Box<Expr>,
+    context: ExprContext,
+    subtree: &moxy_token::__private::Subtree,
+) -> Result<Box<Expr>, ParseError> {
     let op = <_ as Parse>::parse(parser)?;
     let right = assignment_right(parser, context)?;
     let ranged = matches!(*right, Expr::Range(_));
     let assignment = boxed(ExprBinaryChain::new(*left, op, *right));
 
-    continue_after_range(parser, assignment, ranged, context)
+    continue_after_range(parser, assignment, ranged, context, subtree)
 }
 
 // A range that ends the right side of an assignment ends that side alone, so
@@ -175,15 +191,24 @@ fn continue_after_range(
     assignment: Box<Expr>,
     ranged: bool,
     context: ExprContext,
+    subtree: &moxy_token::__private::Subtree,
 ) -> Result<Box<Expr>, ParseError> {
-    if ranged {
-        // The assignment that follows nests the tree one level, as in
-        // `a = b.. = c`
-        let _depth = moxy_token::__private::Depth::enter().ok_or_else(|| ParseError::too_deep(parser.span()))?;
-        assignment_rest(parser, assignment, context)
-    } else {
-        Ok(assignment)
+    if !ranged || !peek_assignment(parser.cursor()) {
+        return Ok(assignment);
     }
+
+    // The assignment that follows takes this one as its left side, which
+    // walking the tree nests through, as in `a = b.. = c`, and its parse
+    // recurses a level
+    let Some(_depth) = moxy_token::__private::Depth::enter() else {
+        return too_deep(parser);
+    };
+
+    if !wraps(subtree) {
+        return too_deep(parser);
+    }
+
+    assignment_rest(parser, assignment, context, subtree)
 }
 
 // The right side of an assignment, which nests one level per operator as

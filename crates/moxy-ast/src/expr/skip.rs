@@ -50,13 +50,13 @@ pub(crate) fn early_block_like(cursor: Cursor<'_>) -> Option<(Cursor<'_>, bool)>
         }
 
         let (cursor, chained) = binary_rest(cast_rest(operand)?, context, Precedence::Or, &subtree)?;
-        wrap_chained_left(cursor, chained, &subtree)?;
+        wraps_chained_left(cursor, chained, &subtree).then_some(())?;
 
         if RangeLimits::peek(cursor) {
             return Some((range_limits(cursor, context)?.0, false));
         }
 
-        return Some((assignment_rest(cursor, context)?.0, false));
+        return Some((assignment_rest(cursor, context, &subtree)?.0, false));
     }
 
     Some((assignment(start, ExprContext::NORMAL)?, false))
@@ -525,12 +525,8 @@ fn binary_rest<'a>(
 
 // Counts the level of a range or assignment that wraps a chain on its left,
 // as in the parser
-fn wrap_chained_left(cursor: Cursor<'_>, chained: bool, subtree: &moxy_token::__private::Subtree) -> Option<()> {
-    if chained && (RangeLimits::peek(cursor) || peek_assignment(cursor)) {
-        subtree.wrap(subtree.height())?;
-    }
-
-    Some(())
+fn wraps_chained_left(cursor: Cursor<'_>, chained: bool, subtree: &moxy_token::__private::Subtree) -> bool {
+    !(chained && (RangeLimits::peek(cursor) || peek_assignment(cursor))) || subtree.wrap(subtree.height()).is_some()
 }
 
 // Skips a range or the operand of one, and tells whether a range ended it
@@ -539,7 +535,7 @@ fn range(mut cursor: Cursor<'_>, context: ExprContext) -> Option<(Cursor<'_>, bo
         let subtree = moxy_token::__private::Depth::subtree();
         let (end, chained) = binary(cursor, context)?;
         cursor = end;
-        wrap_chained_left(cursor, chained, &subtree)?;
+        wraps_chained_left(cursor, chained, &subtree).then_some(())?;
 
         if !RangeLimits::peek(cursor) {
             return Some((cursor, false));
@@ -580,17 +576,23 @@ fn assignment(cursor: Cursor<'_>, context: ExprContext) -> Option<Cursor<'_>> {
 // Skips an assignment as the parser parses it, and tells whether a range
 // ended it
 fn assignment_ranged(cursor: Cursor<'_>, context: ExprContext) -> Option<(Cursor<'_>, bool)> {
+    let subtree = moxy_token::__private::Depth::subtree();
     let (cursor, ranged) = range(cursor, context)?;
 
     if ranged {
         return Some((cursor, true));
     }
 
-    assignment_rest(cursor, context)
+    assignment_rest(cursor, context, &subtree)
 }
 
-// The assignments after a left side that a range does not end
-fn assignment_rest(mut cursor: Cursor<'_>, context: ExprContext) -> Option<(Cursor<'_>, bool)> {
+// The assignments after a left side that a range does not end. `subtree`
+// measures from before the left side.
+fn assignment_rest<'a>(
+    mut cursor: Cursor<'a>,
+    context: ExprContext,
+    subtree: &moxy_token::__private::Subtree,
+) -> Option<(Cursor<'a>, bool)> {
     // Each assignment after a range nests in the tree the parser builds, so
     // its level is held until the whole chain is skipped
     let mut levels = Vec::new();
@@ -601,6 +603,12 @@ fn assignment_rest(mut cursor: Cursor<'_>, context: ExprContext) -> Option<(Curs
 
         if !assign && !compound {
             return Some((cursor, false));
+        }
+
+        // An assignment after a range takes the one before as its left side,
+        // as in the parser
+        if !levels.is_empty() {
+            subtree.wrap(subtree.height())?;
         }
 
         cursor = if assign {
