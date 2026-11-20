@@ -74,19 +74,44 @@ fn public_parse_rejects_trailing_tokens() {
     assert!(moxy::parse!("fn value" as Token![fn]).is_err());
 }
 
+// A message names what was expected and what was found, with code in
+// backticks, in the lexer and the parser alike
+#[test]
+fn error_messages_name_what_was_expected_and_found() {
+    for (source, message) in [
+        ("\"abc", "unterminated string literal"),
+        ("r\"abc", "unterminated raw string literal"),
+        ("0x", "invalid literal"),
+        ("(]", "expected `)`, found `]`"),
+        ("fn f(", "unclosed delimiter `(`"),
+        ("fn f() {})", "unexpected closing delimiter `)`"),
+        ("fn f() { € }", "unexpected character `€`"),
+        ("struct S<T", "expected `>`, found end of input"),
+        ("fn f() -> {}", "expected type, found `{}`"),
+        ("fn f() { a b }", "expected `;`, found `b`"),
+        ("fn f() { x. }", "expected identifier, found end of input"),
+        ("$", "unexpected `$`"),
+    ] {
+        let error = moxy::parse!(source as moxy::ast::File)
+            .err()
+            .unwrap_or_else(|| panic!("`{source}` parsed"));
+        assert_eq!(error.message(), message, "`{source}`");
+    }
+}
+
 #[test]
 fn delimited_lists_that_stop_early_are_errors() {
     for (source, message) in [
-        ("fn f(x: u8 y: u8) {}", "unexpected trailing input"),
-        ("fn f(x: Vec<u8 u8>) {}", "expected `>` punctuation"),
-        ("fn f() { g(a b) }", "expected `,` punctuation"),
-        ("fn f() { match x { 1 => a b } }", "expected `,` after a match arm"),
-        ("fn f() { let s = S { a: 1 b: 2 }; }", "unexpected trailing input"),
-        ("fn f() { [1 2] }", "unexpected trailing input"),
-        ("fn f() { (1 2) }", "unexpected trailing input"),
-        ("fn f() { x.y::<u8 u8>() }", "expected `>` punctuation"),
-        ("impl A { fn f() {} @ }", "unexpected trailing input"),
-        ("mod m { fn f() {} @ }", "unexpected trailing input"),
+        ("fn f(x: u8 y: u8) {}", "unexpected `y`"),
+        ("fn f(x: Vec<u8 u8>) {}", "expected `>`, found `u8`"),
+        ("fn f() { g(a b) }", "expected `,`, found `b`"),
+        ("fn f() { match x { 1 => a b } }", "expected `,` after a match arm, found `b`"),
+        ("fn f() { let s = S { a: 1 b: 2 }; }", "unexpected `b`"),
+        ("fn f() { [1 2] }", "unexpected `2`"),
+        ("fn f() { (1 2) }", "unexpected `2`"),
+        ("fn f() { x.y::<u8 u8>() }", "expected `>`, found `u8`"),
+        ("impl A { fn f() {} @ }", "unexpected `@`"),
+        ("mod m { fn f() {} @ }", "unexpected `@`"),
     ] {
         let error = moxy::parse!(source as moxy::ast::Item)
             .err()
@@ -678,12 +703,12 @@ fn an_error_inside_a_list_of_items_is_reported_where_it_is() {
     let source = "mod m {\n    fn f() {}\n    fn g() { let = 1; }\n}";
     let error = moxy::parse!(source as moxy::ast::File).err().unwrap();
     assert_eq!(error.span().start().line(), 2);
-    assert_ne!(error.message(), "unexpected trailing input");
+    assert_eq!(error.message(), "expected pattern, found `=`");
 
     let source = "fn f() {}\nstruct S { a: }";
     let error = moxy::parse!(source as moxy::ast::File).err().unwrap();
     assert_eq!(error.span().start().line(), 1);
-    assert_ne!(error.message(), "unexpected trailing input");
+    assert_eq!(error.message(), "expected type, found end of input");
 }
 
 // Runs `parse` on a worker thread and fails if it takes longer than a limit
@@ -1336,10 +1361,10 @@ fn converting_tokens_past_the_depth_limit_without_an_error_panics() {
 fn an_error_quotes_a_group_by_its_delimiters() {
     // A message that printed the whole group printed every macro body it met
     let error = moxy::parse!("{ a b c }" as moxy::token::Ident).err().unwrap();
-    assert_eq!(error.message(), "expected ident, received \"{ ... }\"");
+    assert_eq!(error.message(), "expected identifier, found `{ ... }`");
 
     let error = moxy::parse!("()" as moxy::token::Ident).err().unwrap();
-    assert_eq!(error.message(), "expected ident, received \"()\"");
+    assert_eq!(error.message(), "expected identifier, found `()`");
 }
 
 #[test]

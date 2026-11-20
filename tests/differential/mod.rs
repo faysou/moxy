@@ -37,7 +37,7 @@ fn moxy_render(kind: &str, source: &str) -> Rendering {
     } else {
         TokenStream::from_string(source.to_owned())
     };
-    let tokens = lexed.map_err(|error| format!("{error:?}"))?;
+    let tokens = lexed.map_err(|error| error.to_string())?;
 
     match kind {
         "e" => go::<m::Expr>(&tokens, mexpr),
@@ -137,6 +137,48 @@ fn corpus() {
         unexpected.join("\n"),
         stale.join("\n"),
     );
+}
+
+// Every message moxy gives for a corpus source it rejects follows one style:
+// lowercase with no closing period, code in backticks, no type names (an
+// acronym such as `ASCII` is fine), and
+// "expected X, found `y`" or "found end of input" where it names what it found
+#[test]
+fn error_messages_follow_one_style() {
+    fn follows_style(message: &str) -> bool {
+        let prose: String = message.split('`').step_by(2).collect();
+        let found = message
+            .split_once(", found ")
+            .is_none_or(|(_, found)| found == "end of input" || found.starts_with('`') && found.ends_with('`'));
+
+        message.starts_with(|ch: char| ch.is_lowercase() || ch == '`')
+            && !message.ends_with('.')
+            && !prose.contains('"')
+            && !prose.contains("received")
+            && prose
+                .split(|ch: char| !ch.is_alphanumeric())
+                .all(|word| !word.contains(char::is_lowercase) || !word.contains(char::is_uppercase))
+            && found
+    }
+
+    let mut messages = 0;
+    let mut outliers = Vec::new();
+
+    for line in entries(CORPUS) {
+        let (kind, source) = line.split_once(": ").unwrap();
+        let source = source.replace("\\n", "\n");
+
+        if let Ok(Err(message)) = catch_unwind(AssertUnwindSafe(|| moxy_render(kind, &source))) {
+            messages += 1;
+
+            if !follows_style(&message) {
+                outliers.push(format!("{line}: {message}"));
+            }
+        }
+    }
+
+    assert!(messages > 100, "{messages} messages");
+    assert!(outliers.is_empty(), "{}", outliers.join("\n"));
 }
 
 // At every token of every corpus line, `skip` ends where `parse` ends, or both

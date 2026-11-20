@@ -79,7 +79,7 @@ pub(super) fn parse_unparenthesized_expr(parser: &Parser) -> Result<TokenStream,
         }
 
         let Some(token) = parser.advance() else {
-            return parser.error("expected template directive body").into();
+            return parser.expected("template directive body").into();
         };
 
         expr.extend_one(token.clone());

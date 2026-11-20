@@ -57,19 +57,17 @@ impl Scan for Group {
         drop(depth);
         let close_ch = c
             .first()
-            .ok_or_else(|| cursor.error().message(format!("unclosed delimiter '{}'", delim.open())))?;
+            .ok_or_else(|| cursor.error().message(format!("unclosed delimiter `{}`", delim.open())))?;
 
         let close_delim = Delim::from_close(close_ch).ok_or_else(|| {
             c.error()
-                .message(format!("expected '{}', found '{}'", delim.close(), close_ch))
+                .message(format!("expected `{}`, found `{}`", delim.close(), close_ch))
         })?;
 
         if delim != close_delim {
-            return Err(c.error().message(format!(
-                "mismatched delimiter: expected '{}', found '{}'",
-                delim.close(),
-                close_ch,
-            )));
+            return Err(c
+                .error()
+                .message(format!("expected `{}`, found `{}`", delim.close(), close_ch,)));
         }
 
         let close = c.span();

@@ -12,7 +12,7 @@ pub struct Field {
 impl Field {
     pub fn parse(field: &moxy::ast::Field, index: usize) -> Result<Self, moxy::ast::ParseError> {
         let Some(member) = field.ident.clone() else {
-            return Err(moxy::ast::ParseError::new(field.span(), "`meta` requires named fields"));
+            return Err(moxy::ast::ParseError::new(field.span(), "`FromMeta` requires named fields"));
         };
 
         let mut key = LitStr::new(member.text(), member.span());

@@ -82,7 +82,7 @@ impl Scan for LitBool {
         if !ident.is_raw() && (ident.text() == "true" || ident.text() == "false") {
             Ok((cursor, Self::new(ident.text() == "true", ident.span())))
         } else {
-            cursor.error().message("expected bool literal").into()
+            cursor.error().message("expected boolean literal").into()
         }
     }
 }

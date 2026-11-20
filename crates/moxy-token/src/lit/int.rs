@@ -348,7 +348,7 @@ impl std::str::FromStr for Radix {
             "0o" | "0O" => Ok(Self::Octal),
             "0x" | "0X" => Ok(Self::Hex),
             "" => Ok(Self::Decimal),
-            v => Err(format!("expected integer literal radix, received {v}")),
+            v => Err(format!("expected integer literal radix, found `{v}`")),
         }
     }
 }
@@ -431,7 +431,7 @@ impl std::str::FromStr for IntSuffix {
             "u64" => Ok(Self::U64),
             "u128" => Ok(Self::U128),
             "usize" => Ok(Self::USize),
-            v => Err(format!("expected integer literal suffix, received {v}")),
+            v => Err(format!("expected integer literal suffix, found `{v}`")),
         }
     }
 }

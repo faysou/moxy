@@ -108,7 +108,7 @@ pub fn __parse_owned<T: Parse>(source: impl TryIntoTokenStream) -> Result<T, Par
         let value = T::parse(&parser)?;
 
         if !parser.is_empty() {
-            return Err(parser.error("unexpected trailing input"));
+            return Err(parser.unexpected());
         }
 
         Ok(value)

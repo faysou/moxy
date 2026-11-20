@@ -84,7 +84,7 @@ impl ItemTrait {
 
         // Supertraits come before a where clause, never after it
         if generics.where_clause.is_some() && <Token![:]>::peek(parser.cursor()) {
-            return parser.error("expected `{`").into();
+            return parser.expected("`{`").into();
         }
 
         let (colon_punct, supertraits) = if <Token![:]>::peek(parser.cursor()) {

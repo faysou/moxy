@@ -28,7 +28,7 @@ impl Meta {
         P: FnMut(&Self) -> Result<(), ParseError>,
     {
         let MetaContent::List(group) = &self.content else {
-            return ParseError::new(self.span(), "meta content must be a list to descend").into();
+            return ParseError::new(self.span(), "expected a delimited list, as in `name(...)`").into();
         };
 
         let parser = Parser::from_tokens(&group.tokens);
@@ -149,7 +149,7 @@ impl Parse for MetaContent {
             // As in rustc, the value is an expression, as `"a.rs"` in
             // `#[path = "a.rs"]`
             let Some(end) = Expr::skip(parser.cursor()) else {
-                return parser.error("expected expression").into();
+                return parser.expected("expression").into();
             };
 
             parser.seek(&Parser::from_cursor(end));

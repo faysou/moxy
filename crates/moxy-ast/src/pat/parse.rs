@@ -10,7 +10,7 @@ pub(crate) fn single(parser: &Parser) -> Result<Pattern, ParseError> {
     // As in rustc, a pattern takes no attributes; a parameter, match arm, or
     // struct pattern field holds them
     if <Token![#]>::peek(parser.cursor()) {
-        return parser.error("expected pattern").into();
+        return parser.expected("pattern").into();
     }
 
     // One call site for every form keeps one return slot in this frame
@@ -30,7 +30,7 @@ pub(crate) fn single(parser: &Parser) -> Result<Pattern, ParseError> {
         super::Form::Struct => parse_into::<PatStruct, Pattern>,
         super::Form::Path => bound::<PatPath>,
         super::Form::Lit => bound::<PatLit>,
-        super::Form::None => return parser.error("expected pattern").into(),
+        super::Form::None => return parser.expected("pattern").into(),
     };
 
     parse(parser)

@@ -43,6 +43,24 @@ impl<'a> Parser<'a> {
         ParseError::new(self.span(), message)
     }
 
+    /// An error at the current token, which is not the `expected` input, that
+    /// names the token or the end of the input, as "expected `;`, found `}`".
+    pub fn expected(&self, expected: impl std::fmt::Display) -> ParseError {
+        match self.curr() {
+            Some(token) => self.error(format!("expected {expected}, found `{}`", received(token))),
+            None => self.error(format!("expected {expected}, found end of input")),
+        }
+    }
+
+    /// An error at the current token, which no input expects, as "unexpected
+    /// `@`".
+    pub fn unexpected(&self) -> ParseError {
+        match self.curr() {
+            Some(token) => self.error(format!("unexpected `{}`", received(token))),
+            None => self.error("unexpected end of input"),
+        }
+    }
+
     pub fn fork(&self) -> Self {
         Self {
             cursor: self.cursor.clone(),
@@ -132,11 +150,7 @@ impl Parser<'_> {
     /// consumed, so a list that stops early inside a delimited group fails
     /// instead of dropping the rest of the group.
     pub fn ensure_empty(&self) -> Result<(), ParseError> {
-        if self.is_empty() {
-            Ok(())
-        } else {
-            Err(self.error("unexpected trailing input"))
-        }
+        if self.is_empty() { Ok(()) } else { Err(self.unexpected()) }
     }
 
     pub fn parse_until_empty<T: Parse>(&self) -> Result<Vec<T>, ParseError> {
@@ -157,7 +171,7 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Ok(Self::from_tokens(&group.tokens))
             }
-            _ => Err(self.error(format!("expected `{}` delimiter", delim.as_str()))),
+            _ => Err(self.expected(format_args!("`{}`", delim.open()))),
         }
     }
 
@@ -167,17 +181,19 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Ok((group.span, Self::from_tokens(&group.tokens)))
             }
-            _ => Err(self.error(format!("expected `{}` delimiter", delim.as_str()))),
+            _ => Err(self.expected(format_args!("`{}`", delim.open()))),
         }
     }
 
     pub fn parse_ident_any(&self) -> Result<Ident, ParseError> {
-        match self.advance() {
-            Some(TokenTree::Ident(ident)) => Ok(ident.clone()),
-            Some(TokenTree::Keyword(keyword)) => Ok(Ident::new(keyword.as_str()).with_span(keyword.span())),
-            Some(other) => Err(self.error(format!("expected Ident, received \"{}\"", received(other)))),
-            None => Err(self.error("expected Ident, received \"<EOF>\"")),
-        }
+        let ident = match self.curr() {
+            Some(TokenTree::Ident(ident)) => ident.clone(),
+            Some(TokenTree::Keyword(keyword)) => Ident::new(keyword.as_str()).with_span(keyword.span()),
+            _ => return Err(self.expected("identifier")),
+        };
+
+        self.advance();
+        Ok(ident)
     }
 }
 
