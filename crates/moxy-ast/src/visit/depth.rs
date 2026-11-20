@@ -136,9 +136,9 @@ macro_rules! depth_checks {
             /// code can: whether the expressions, types, patterns, items,
             /// blocks, use trees, associated arguments, and token groups that
             /// nest in one another count past [`MAX_NESTED_NODES`], a limit
-            /// the parser's trees are tested to stay within. Every
-            /// traversal of a tree that does not runs on the stack
-            /// `MAX_DEPTH` is sized for. The check stops descending once the
+            /// the parser's trees are tested to stay within. A tree within
+            /// it runs every traversal on the stack `MAX_DEPTH` is sized
+            /// for, as tested for the shapes that the docs of [`MAX_NESTED_NODES`] list. The check stops descending once the
             /// tree is past the limit, so it runs on a tree nested any depth.
             pub fn nests_past_max_depth(&self) -> bool {
                 let mut check = DepthCheck::default();

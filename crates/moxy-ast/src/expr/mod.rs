@@ -130,55 +130,43 @@ pub enum Expr {
     Yield(ExprYield),
 }
 
-// Every nested expression holds the frame of `clone`, so each variant clones
-// in a frame of its own: a derived `clone` holds one slot for each variant's
-// node in a debug build, which took several kilobytes a level
-impl Clone for Expr {
-    fn clone(&self) -> Self {
-        match self {
-            Self::Array(node) => clone_variant(node, Self::Array),
-            Self::Assign(node) => clone_variant(node, Self::Assign),
-            Self::Async(node) => clone_variant(node, Self::Async),
-            Self::BinaryChain(node) => clone_variant(node, Self::BinaryChain),
-            Self::Block(node) => clone_variant(node, Self::Block),
-            Self::Break(node) => clone_variant(node, Self::Break),
-            Self::CastChain(node) => clone_variant(node, Self::CastChain),
-            Self::Closure(node) => clone_variant(node, Self::Closure),
-            Self::Const(node) => clone_variant(node, Self::Const),
-            Self::Continue(node) => clone_variant(node, Self::Continue),
-            Self::ForLoop(node) => clone_variant(node, Self::ForLoop),
-            Self::Group(node) => clone_variant(node, Self::Group),
-            Self::IfChain(node) => clone_variant(node, Self::IfChain),
-            Self::Infer(node) => clone_variant(node, Self::Infer),
-            Self::Let(node) => clone_variant(node, Self::Let),
-            Self::Lit(node) => clone_variant(node, Self::Lit),
-            Self::Loop(node) => clone_variant(node, Self::Loop),
-            Self::Macro(node) => clone_variant(node, Self::Macro),
-            Self::Match(node) => clone_variant(node, Self::Match),
-            Self::Paren(node) => clone_variant(node, Self::Paren),
-            Self::Path(node) => clone_variant(node, Self::Path),
-            Self::Postfix(node) => clone_variant(node, Self::Postfix),
-            Self::Range(node) => clone_variant(node, Self::Range),
-            Self::RawAddr(node) => clone_variant(node, Self::RawAddr),
-            Self::Reference(node) => clone_variant(node, Self::Reference),
-            Self::Repeat(node) => clone_variant(node, Self::Repeat),
-            Self::Return(node) => clone_variant(node, Self::Return),
-            Self::Struct(node) => clone_variant(node, Self::Struct),
-            Self::TryBlock(node) => clone_variant(node, Self::TryBlock),
-            Self::Tuple(node) => clone_variant(node, Self::Tuple),
-            Self::Unary(node) => clone_variant(node, Self::Unary),
-            Self::Unsafe(node) => clone_variant(node, Self::Unsafe),
-            Self::Verbatim(node) => clone_variant(node, Self::Verbatim),
-            Self::While(node) => clone_variant(node, Self::While),
-            Self::Yield(node) => clone_variant(node, Self::Yield),
-        }
-    }
-}
-
-#[inline(never)]
-fn clone_variant<T: Clone>(node: &T, variant: fn(T) -> Expr) -> Expr {
-    variant(node.clone())
-}
+clone_in_small_frames!(Expr {
+    Array,
+    Assign,
+    Async,
+    BinaryChain,
+    Block,
+    Break,
+    CastChain,
+    Closure,
+    Const,
+    Continue,
+    ForLoop,
+    Group,
+    IfChain,
+    Infer,
+    Let,
+    Lit,
+    Loop,
+    Macro,
+    Match,
+    Paren,
+    Path,
+    Postfix,
+    Range,
+    RawAddr,
+    Reference,
+    Repeat,
+    Return,
+    Struct,
+    TryBlock,
+    Tuple,
+    Unary,
+    Unsafe,
+    Verbatim,
+    While,
+    Yield
+});
 
 impl Expr {
     pub fn attrs(&self) -> Option<&Attributes> {

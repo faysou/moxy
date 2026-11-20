@@ -2092,3 +2092,81 @@ fn attributes_and_block_like_roots_take_their_levels() {
         ([(); 2].map(|_| Some(message.clone())), [(); 5].map(|_| Some(message.clone())))
     );
 }
+
+fn item_body(block: &mut moxy::ast::StmtBlock) -> &mut moxy::ast::StmtBlock {
+    let moxy::ast::Stmt::Item(item) = &mut block.stmts.inner[0] else {
+        panic!()
+    };
+    let moxy::ast::Item::Fn(function) = &mut **item else {
+        panic!()
+    };
+    function.body.as_mut().unwrap()
+}
+
+fn impl_member_body(block: &mut moxy::ast::StmtBlock) -> &mut moxy::ast::StmtBlock {
+    let moxy::ast::Stmt::Item(item) = &mut block.stmts.inner[0] else {
+        panic!()
+    };
+    let moxy::ast::Item::Impl(item) = &mut **item else { panic!() };
+    let moxy::ast::ImplItem::Fn(function) = &mut item.items.inner[0] else {
+        panic!()
+    };
+    function.body.as_mut().unwrap()
+}
+
+fn arm_body(expr: &mut moxy::ast::Expr) -> &mut moxy::ast::Expr {
+    let moxy::ast::Expr::Match(expr) = expr else { panic!() };
+    &mut expr.arms.inner[0].body
+}
+
+fn field_value(expr: &mut moxy::ast::Expr) -> &mut moxy::ast::Expr {
+    let moxy::ast::Expr::Struct(expr) = expr else { panic!() };
+    &mut expr.body.inner.fields.first_mut().unwrap().expr
+}
+
+fn typed_closure_body(expr: &mut moxy::ast::Expr) -> &mut moxy::ast::Expr {
+    let moxy::ast::Expr::Closure(closure) = expr else { panic!() };
+    let moxy::ast::Expr::Block(block) = &mut *closure.body else {
+        panic!()
+    };
+    let moxy::ast::Stmt::Expr(expr, _) = &mut block.block.stmts.inner[0] else {
+        panic!()
+    };
+    expr
+}
+
+// Heavy forms, whose parse takes more levels than the nodes the depth check
+// counts for them, built to the node limit run every traversal on a small
+// stack
+#[test]
+fn heavy_forms_built_to_the_limit_run_every_traversal() {
+    use moxy::ast::{Expr, StmtBlock};
+
+    let limits = on_small_stack(|| {
+        let deepest = |past: &dyn Fn(usize) -> bool| (1..).find(|&n| past(n + 1)).unwrap();
+        let items = |n| built::<StmtBlock>("{ fn f() {} }", "{}", n, item_body);
+        let members = |n| built::<StmtBlock>("{ impl A { fn f() {} } }", "{}", n, impl_member_body);
+        let arms = |n| built::<Expr>("match x { _ => y }", "y", n, arm_body);
+        let fields = |n| built::<Expr>("S { a: x }", "x", n, field_value);
+        let closures = |n| built::<Expr>("|| -> u8 { x }", "x", n, typed_closure_body);
+        let limits = [
+            deepest(&|n| items(n).nests_past_max_depth()),
+            deepest(&|n| members(n).nests_past_max_depth()),
+            deepest(&|n| arms(n).nests_past_max_depth()),
+            deepest(&|n| fields(n).nests_past_max_depth()),
+            deepest(&|n| closures(n).nests_past_max_depth()),
+        ];
+
+        traverse(items(limits[0]));
+        traverse(members(limits[1]));
+        traverse(arms(limits[2]));
+        traverse(fields(limits[3]));
+        traverse(closures(limits[4]));
+        limits
+    });
+
+    // A block and an item per level take two of the 288 nodes, an arm body or
+    // a field value one, and a typed closure three (the closure, its block
+    // expression, and its block)
+    assert_eq!(limits, [143, 143, 287, 287, 95]);
+}

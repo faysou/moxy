@@ -74,10 +74,12 @@ pub const MAX_DEPTH: usize = 144;
 /// chains count one node each, an associated argument two, its bounds or
 /// value four or two more, and each group nested in a macro body or attribute
 /// arguments two: half a level of [`MAX_DEPTH`] for each level the parser
-/// charges them. A tree within the limit runs every traversal on the stack
-/// that `MAX_DEPTH` is sized for, which tests check for trees built to the
-/// limit through unary, list, and block expressions, references, patterns,
-/// types, use trees, associated arguments, and macro bodies.
+/// charges them. Trees built to the limit run every traversal on the stack
+/// that `MAX_DEPTH` is sized for when they nest through unary, list, and block
+/// expressions, references, patterns, types, use trees, associated arguments,
+/// macro bodies, items in blocks, impl members, match arms, struct literals,
+/// or closures with a return type: those shapes are tested, other shapes are
+/// not.
 ///
 /// Parsing does not count nodes, since walking the tree once more would add
 /// about an eighth to the cost of a parse. It charges levels so that its
