@@ -43,9 +43,12 @@ impl Parse for File {
 
     fn parse(parser: &Parser) -> Result<Self, ParseError> {
         let shebang = <_ as Parse>::parse(parser)?;
+
+        // Only inner attributes belong to the file; outer ones belong to its first item
         let mut attrs = Attributes::default();
-        while peek_inner_attr(parser.cursor()) {
-            attrs.push(Attribute::parse(parser)?);
+
+        while AttrStyle::peek(parser.cursor()) && <Token![!]>::peek(parser.cursor().offset(1)) {
+            attrs.push(<_ as Parse>::parse(parser)?);
         }
 
         Ok(Self {
