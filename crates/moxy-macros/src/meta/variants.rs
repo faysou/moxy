@@ -22,8 +22,8 @@ impl Variant {
             };
 
             return Err(moxy::ast::ParseError::new(
-                span,
-                "`Meta` enum variants cannot have discriminants",
+                variant.span(),
+                "`FromMeta` enum variants cannot have discriminants",
             ));
         }
 
@@ -41,11 +41,8 @@ impl Variant {
                 continue;
             }
 
-            let moxy::ast::MetaContent::List(group) = &attr.content else {
-                return Err(moxy::ast::ParseError::new(attr.span(), "expected `#[meta(...)]`"));
-            };
-
-            let parser = moxy::ast::Parser::from_tokens(&group.tokens);
+            let group = rules_group(attr)?;
+            let parser = moxy::ast::Parser::from_group(group);
             let rules = List::<MetaRule, moxy::ast::Token![,]>::parse_all(&parser)?;
 
             for rule in rules {
@@ -84,8 +81,8 @@ impl Variant {
 
                 if values.len() != 1 {
                     return Err(moxy::ast::ParseError::new(
-                        fields.fields.close(),
-                        "`Meta` tuple variants must contain exactly one field",
+                        variant.fields.span(),
+                        "`FromMeta` tuple variants must contain exactly one field",
                     ));
                 }
 
