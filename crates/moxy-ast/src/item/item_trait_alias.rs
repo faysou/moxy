@@ -27,6 +27,7 @@ impl Parse for ItemTraitAlias {
     fn peek(cursor: crate::Cursor<'_>) -> bool {
         let cursor = Attributes::skip(cursor).unwrap_or(cursor);
         let cursor = Visibility::skip(cursor).unwrap_or(cursor);
+        // As in rustc, a trait alias is neither `unsafe` nor `auto`
         let Some(cursor) = <Token![trait]>::skip(cursor) else {
             return false;
         };

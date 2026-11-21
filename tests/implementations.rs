@@ -68,6 +68,13 @@ fn a_type_alias_takes_its_where_clause_before_or_after_the_type() {
 }
 
 #[test]
+fn only_a_trait_impl_is_negative() {
+    let item: Item = moxy::parse!("impl !A for B {}").unwrap();
+    assert_eq!(item.to_token_stream().to_string(), "impl ! A for B {}");
+    assert!(moxy::parse!("impl !A {}" as Item).is_err());
+}
+
+#[test]
 fn implementations_preserve_where_clauses_when_formatted() {
     let item: Item = moxy::parse!("impl<T> Example<T> where T: Copy { fn value(&self) -> T { self.0 } }").unwrap();
     let implementation = item.as_impl().unwrap();

@@ -54,15 +54,19 @@ impl Parse for ItemImpl {
         let polarity: Option<Token![!]> = <_ as Parse>::parse(parser)?;
 
         let first = <_ as Parse>::parse(parser)?;
+
+        // Only a trait impl is negative, as in rustc
+        if let Some(bang) = &polarity
+            && !<Token![for]>::peek(parser.cursor())
+        {
+            return Err(ParseError::new(bang.span(), "an inherent impl cannot be negative"));
+        }
+
         let (for_keyword, trait_ref, self_ty) = if <Token![for]>::peek(parser.cursor()) {
             let for_keyword = <_ as Parse>::parse(parser)?;
             let self_ty = <_ as Parse>::parse(parser)?;
             (Some(for_keyword), Some(Self::type_to_trait_ref(first, polarity)?), self_ty)
         } else {
-            if let Some(bang) = polarity {
-                return Err(ParseError::new(bang.span(), "an inherent impl cannot be negative"));
-            }
-
             (None, None, first)
         };
 
@@ -92,11 +96,13 @@ impl Parse for ItemImpl {
         cursor = Option::<Token![!]>::skip(cursor)?;
         cursor = Type::skip(cursor)?;
 
+        if negative && !<Token![for]>::peek(cursor) {
+            return None;
+        }
+
         if <Token![for]>::peek(cursor) {
             cursor = <Token![for]>::skip(cursor)?;
             cursor = Type::skip(cursor)?;
-        } else if negative {
-            return None;
         }
 
         cursor = Option::<crate::WhereClause>::skip(cursor)?;
