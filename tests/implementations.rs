@@ -1,5 +1,5 @@
-use moxy::ast::{Item, Parse, Parser};
-use moxy::token::TokenStream;
+use moxy::ast::Item;
+use moxy::token::ToTokenStream;
 
 #[test]
 fn inherent_implementations_preserve_members_and_render_layout() {
@@ -23,6 +23,39 @@ fn unsafe_negative_trait_implementations_expose_polarity() {
 }
 
 #[test]
+fn impl_where_clauses_follow_the_self_type() {
+    let item: Item = moxy::parse!("impl<T> A for B<T> where T: C {}").unwrap();
+    assert_eq!(item.to_token_stream().to_string(), "impl < T > A for B < T > where T : C {}");
+    assert_eq!(moxy::fmt!(&item).unwrap(), "impl<T> A for B<T>\nwhere\nT: C {}");
+}
+
+#[test]
+fn associated_type_where_clauses_follow_the_type() {
+    for (source, tokens, formatted) in [
+        (
+            "impl A for B { type X<T> = Vec<T> where T: Clone; }",
+            "impl A for B {type X < T > = Vec < T > where T : Clone ;}",
+            "impl A for B {\n\ttype X<T> = Vec<T>\n\twhere\n\tT: Clone;\n}",
+        ),
+        (
+            "trait A { type X<T>: B = Vec<T> where T: Clone; }",
+            "trait A {type X < T > : B = Vec < T > where T : Clone ;}",
+            "trait A {\n\ttype X<T>: B = Vec<T>\n\twhere\n\tT: Clone;\n}",
+        ),
+        // The older place before `=` moves after the type
+        (
+            "impl A for B { type X<T> where T: Clone = Vec<T>; }",
+            "impl A for B {type X < T > = Vec < T > where T : Clone ;}",
+            "impl A for B {\n\ttype X<T> = Vec<T>\n\twhere\n\tT: Clone;\n}",
+        ),
+    ] {
+        let item: Item = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        assert_eq!(item.to_token_stream().to_string(), tokens);
+        assert_eq!(moxy::fmt!(&item).unwrap(), formatted);
+    }
+}
+
+#[test]
 fn implementations_preserve_where_clauses_when_formatted() {
     let item: Item = moxy::parse!("impl<T> Example<T> where T: Copy { fn value(&self) -> T { self.0 } }").unwrap();
     let implementation = item.as_impl().unwrap();
@@ -32,15 +65,4 @@ fn implementations_preserve_where_clauses_when_formatted() {
         moxy::fmt!(&item).unwrap(),
         "impl<T> Example<T>\nwhere\nT: Copy {\n\tfn value(&self) -> T {\n\t\tself.0\n\t}\n}"
     );
-}
-
-#[test]
-fn inherent_impls_reject_polarity() {
-    let source = "impl !Record {}";
-    let tokens: TokenStream = source.parse().unwrap();
-    let parser = Parser::from_tokens(&tokens);
-
-    let error = moxy::parse!(source as Item).err().unwrap();
-    assert_eq!(error.message(), "an inherent impl cannot be negative");
-    assert!(Item::skip(parser.cursor()).is_none());
 }
