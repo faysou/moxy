@@ -47,6 +47,40 @@ fn higher_ranked_where_predicates_render_on_functions() {
 }
 
 #[test]
+fn literal_const_generic_arguments_parse_in_implementations() {
+    let item: Item = moxy::parse!("impl<P> Builder<P, 0> { fn end(self) -> P { self.0 } }").unwrap();
+    let implementation = item.as_impl().unwrap();
+    let Type::Path(self_ty) = &implementation.self_ty else {
+        panic!("expected a path type");
+    };
+    let PathArguments::AngleBracketed(arguments) = &self_ty.path.last().unwrap().args else {
+        panic!("expected angle-bracketed arguments");
+    };
+
+    assert_eq!(implementation.items.inner.len(), 1);
+    assert!(matches!(arguments.args[1], GenericArgument::Const(_)));
+}
+
+#[test]
+fn associated_const_generic_arguments_parse() {
+    let item: Item = moxy::parse!("impl<P> Builder<P, COUNT = 0> {}").unwrap();
+
+    assert_eq!(moxy::fmt!(&item).unwrap(), "impl<P> Builder<P, COUNT = 0> {}");
+}
+
+#[test]
+fn const_generic_default_permutations_parse() {
+    for source in [
+        "pub struct Unit<const N: usize = 0>;",
+        "struct Tuple<P, const N: usize = 0>(P);",
+        "struct Named<'a, T: 'a, const N: usize = 0, const ENABLED: bool = true> { value: &'a T, bytes: [u8; N] }",
+        "struct Multiple<const A: u8 = 0, const B: u8 = { 1 + 1 }>;",
+    ] {
+        let _: Item = moxy::parse!(source as Item).unwrap_or_else(|err| panic!("failed to parse {source:?}: {err}"));
+    }
+}
+
+#[test]
 fn closed_lists_accept_a_trailing_comma() {
     for (source, tokens) in [
         ("use a::{b, c,};", "use a :: {b , c ,} ;"),
@@ -374,39 +408,5 @@ fn attributes_take_their_own_line_where_rustfmt_puts_them() {
     ] {
         let item: Item = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
         assert_eq!(moxy::fmt!(&item).unwrap(), formatted, "`{source}`");
-    }
-}
-
-#[test]
-fn literal_const_generic_arguments_parse_in_implementations() {
-    let item: Item = moxy::parse!("impl<P> Builder<P, 0> { fn end(self) -> P { self.0 } }").unwrap();
-    let implementation = item.as_impl().unwrap();
-    let Type::Path(self_ty) = &implementation.self_ty else {
-        panic!("expected a path type");
-    };
-    let PathArguments::AngleBracketed(arguments) = &self_ty.path.last().unwrap().args else {
-        panic!("expected angle-bracketed arguments");
-    };
-
-    assert_eq!(implementation.items.inner.len(), 1);
-    assert!(matches!(arguments.args[1], GenericArgument::Const(_)));
-}
-
-#[test]
-fn associated_const_generic_arguments_parse() {
-    let item: Item = moxy::parse!("impl<P> Builder<P, COUNT = 0> {}").unwrap();
-
-    assert_eq!(moxy::fmt!(&item).unwrap(), "impl<P> Builder<P, COUNT = 0> {}");
-}
-
-#[test]
-fn const_generic_default_permutations_parse() {
-    for source in [
-        "pub struct Unit<const N: usize = 0>;",
-        "struct Tuple<P, const N: usize = 0>(P);",
-        "struct Named<'a, T: 'a, const N: usize = 0, const ENABLED: bool = true> { value: &'a T, bytes: [u8; N] }",
-        "struct Multiple<const A: u8 = 0, const B: u8 = { 1 + 1 }>;",
-    ] {
-        let _: Item = moxy::parse!(source as Item).unwrap_or_else(|err| panic!("failed to parse {source:?}: {err}"));
     }
 }

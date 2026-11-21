@@ -23,6 +23,18 @@ fn unsafe_negative_trait_implementations_expose_polarity() {
 }
 
 #[test]
+fn implementations_preserve_where_clauses_when_formatted() {
+    let item: Item = moxy::parse!("impl<T> Example<T> where T: Copy { fn value(&self) -> T { self.0 } }").unwrap();
+    let implementation = item.as_impl().unwrap();
+
+    assert!(implementation.generics.where_clause.is_some());
+    assert_eq!(
+        moxy::fmt!(&item).unwrap(),
+        "impl<T> Example<T>\nwhere\nT: Copy {\n\tfn value(&self) -> T {\n\t\tself.0\n\t}\n}"
+    );
+}
+
+#[test]
 fn impl_where_clauses_follow_the_self_type() {
     let item: Item = moxy::parse!("impl<T> A for B<T> where T: C {}").unwrap();
     assert_eq!(item.to_token_stream().to_string(), "impl < T > A for B < T > where T : C {}");
@@ -166,16 +178,4 @@ fn a_bang_without_a_type_after_it_is_the_never_type_of_an_impl() {
     for source in ["impl !A {}", "impl ! for X {}"] {
         assert!(moxy::parse!(source as Item).is_err(), "`{source}`");
     }
-}
-
-#[test]
-fn implementations_preserve_where_clauses_when_formatted() {
-    let item: Item = moxy::parse!("impl<T> Example<T> where T: Copy { fn value(&self) -> T { self.0 } }").unwrap();
-    let implementation = item.as_impl().unwrap();
-
-    assert!(implementation.generics.where_clause.is_some());
-    assert_eq!(
-        moxy::fmt!(&item).unwrap(),
-        "impl<T> Example<T>\nwhere\nT: Copy {\n\tfn value(&self) -> T {\n\t\tself.0\n\t}\n}"
-    );
 }
