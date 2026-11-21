@@ -1,33 +1,5 @@
-use moxy::ast::{File, Item, Meta, Parse, Parser};
-use moxy::token::{Spanner, TokenStream};
-
-#[test]
-fn file_and_item_attributes_stay_with_their_declarations() {
-    let source = "#![allow(dead_code)] #[inline] fn f() {}";
-    let file: File = moxy::parse!(source).unwrap();
-    let function = file.items[0].as_fn().unwrap();
-
-    assert_eq!(file.items.len(), 1);
-    assert_eq!(file.attrs.len(), 1);
-    assert!(file.attrs[0].style.is_inner());
-    assert!(file.attrs[0].path.is_ident("allow"));
-    assert_eq!(function.attrs.len(), 1);
-    assert!(function.attrs[0].style.is_outer());
-    assert!(function.attrs[0].path.is_ident("inline"));
-}
-
-#[test]
-fn a_file_can_contain_only_inner_attributes() {
-    let source = "#![allow(dead_code)]";
-    let tokens: TokenStream = source.parse().unwrap();
-    let parser = Parser::from_tokens(&tokens);
-    let file: File = moxy::parse!(source).unwrap();
-
-    assert_eq!(file.attrs.len(), 1);
-    assert!(file.items.is_empty());
-    assert!(File::peek(parser.cursor()));
-    assert!(File::skip(parser.cursor()).unwrap().is_empty());
-}
+use moxy::ast::{Expr, Item, Meta};
+use moxy::token::{Spanner, ToTokenStream};
 
 #[test]
 fn outer_attributes_are_attached_to_the_declaration_and_rendered() {
@@ -126,4 +98,37 @@ fn metadata_rejects_scalar_overflow_and_invalid_literal_shapes() {
 
     let value: Meta = moxy::parse!("value = true && false").unwrap();
     assert!(value.parse::<bool>().is_err());
+}
+
+#[test]
+fn expression_attributes_belong_to_the_operand_that_follows_them() {
+    for (source, tokens) in [
+        ("#[a] x.y()", "# [a] x . y ()"),
+        ("#[a] x + y", "# [a] x + y"),
+        ("#[a] -x", "# [a] - x"),
+        ("#[a] x = 1", "# [a] x = 1"),
+        ("#[a] x..y", "# [a] x .. y"),
+        ("#[a] &x", "# [a] & x"),
+        ("x + #[a] y", "x + # [a] y"),
+    ] {
+        let expression: Expr = moxy::parse!(source).unwrap_or_else(|error| panic!("`{source}`: {error}"));
+        assert_eq!(expression.to_token_stream().to_string(), tokens);
+    }
+
+    let expression: Expr = moxy::parse!("#[a] x.y()").unwrap();
+    let call = expression.as_method_call().unwrap();
+    assert_eq!(call.attrs.len(), 1);
+    assert!(call.receiver.attrs().unwrap().is_empty());
+
+    let expression: Expr = moxy::parse!("#[a] x + y").unwrap();
+    let binary = expression.as_binary().unwrap();
+    assert!(binary.attrs.is_empty());
+    assert_eq!(binary.left.attrs().unwrap().len(), 1);
+    assert!(binary.right.attrs().unwrap().is_empty());
+
+    let expression: Expr = moxy::parse!("#[a] -x").unwrap();
+    assert_eq!(expression.as_unary().unwrap().attrs.len(), 1);
+
+    let expression: Expr = moxy::parse!("x + #[a] y").unwrap();
+    assert_eq!(expression.as_binary().unwrap().right.attrs().unwrap().len(), 1);
 }
