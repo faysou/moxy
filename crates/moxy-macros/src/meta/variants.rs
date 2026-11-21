@@ -22,7 +22,7 @@ impl Variant {
             };
 
             return Err(moxy::ast::ParseError::new(
-                variant.span(),
+                span,
                 "`FromMeta` enum variants cannot have discriminants",
             ));
         }
@@ -81,7 +81,7 @@ impl Variant {
 
                 if values.len() != 1 {
                     return Err(moxy::ast::ParseError::new(
-                        variant.fields.span(),
+                        fields.fields.close(),
                         "`FromMeta` tuple variants must contain exactly one field",
                     ));
                 }
