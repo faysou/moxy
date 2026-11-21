@@ -27,7 +27,13 @@ impl Parse for UseGroup {
     fn skip(cursor: Cursor<'_>) -> Option<Cursor<'_>> {
         let mut inner = cursor.descend(Delim::Brace)?;
 
-        while !inner.is_empty() {
+        while <Token![,]>::peek(inner) {
+            inner = <Token![,]>::skip(inner)?;
+
+            if inner.is_empty() {
+                break;
+            }
+
             inner = UseTree::skip(inner)?;
 
             if inner.is_empty() {
